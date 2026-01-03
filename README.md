@@ -216,12 +216,41 @@ Run interop tests: `cd interop && bash run_tests.sh`
 
 This project is based on [py-capnweb](https://github.com/abilian/py-capnweb) by Abilian SAS.
 
-**Why a separate repo?** The original implementation had [several architectural issues](https://github.com/abilian/py-capnweb/issues/5) that required a major refactor to fix properly. Rather than attempting incremental patches, we rebuilt core components from scratch while preserving the overall design. Key improvements include:
+**Why a separate repo?** The original implementation had [several architectural issues](https://github.com/abilian/py-capnweb/issues/5) that required a major refactor to fix properly. Rather than attempting incremental patches, we rebuilt core components from scratch while preserving the overall design.
+
+### Key Improvements
+
+**Architecture:**
 - Refactored `ValueCodec` and `CapabilityCodec` architecture for cleaner wire format handling
-- Fixed error code propagation (errors now preserve their original codes through the RPC chain)
-- Added `create_stub()` public API for ergonomic capability creation
-- Enhanced all examples to demonstrate proper public API usage
-- Comprehensive test coverage (744 tests)
+- Introduced `BidirectionalSession` for full duplex RPC communication
+- Added `WebSocketServerTransport` and `WebSocketClientTransport` for persistent connections
+- Implemented proper capability table management (imports/exports/promises)
+
+**Full Bidirectional Streaming:**
+- Server can now call methods on client-provided callbacks
+- Real-time push notifications from server to client
+- Progress callbacks for long-running operations
+- Symmetric RPC - both peers can export and import capabilities
+
+**Error Handling:**
+- Fixed error code propagation (errors preserve their original codes through the RPC chain)
+- `RpcError.from_wire()` for proper wire-to-error conversion
+- Structured errors with `bad_request`, `not_found`, `permission_denied`, `internal` codes
+
+**Public API:**
+- Added `create_stub()` factory for ergonomic capability creation from `RpcTarget`
+- Exported `RpcStub`, `RpcPromise` for direct use
+- Pythonic method calls: `await stub.method(args)` instead of `stub._hook.call()`
+
+**Examples:**
+- 10 comprehensive examples demonstrating all features
+- All examples use public API patterns (no internal `_hook` access)
+- Each example tested and verified working
+
+**Testing:**
+- 744 tests with 70% coverage
+- Production feature tests (chat, task-queue, data pipeline, pub/sub, etc.)
+- Stress tests for concurrent operations
 
 ## License
 
