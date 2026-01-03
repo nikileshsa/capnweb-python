@@ -6,38 +6,40 @@ Welcome to the Cap'n Web Python documentation!
 
 - **[Quickstart Guide](quickstart.md)** - Get up and running in 5 minutes
 - **[Installation](#installation)** - How to install the library
-- **[Examples](../examples/)** - Working code examples
+- **[Examples](../examples/)** - 10 working code examples
 
 ## Core Documentation
 
 - **[API Reference](api-reference.md)** - Complete API documentation
 - **[Architecture Guide](architecture.md)** - Understand the hook-based architecture
-- **[Advanced Topics](advanced.md)** - Resume tokens, bidirectional RPC, transports
+- **[Wire Format](WIRE_FORMAT.md)** - Protocol wire format details
 
 ## Installation
 
 ### Using uv (Recommended)
 
 ```bash
-git clone https://github.com/abilian/capn-python
-cd capn-python
+git clone https://github.com/nikileshsa/capnweb-python.git
+cd capnweb-python
 uv sync
 ```
 
 ### Using pip
 
 ```bash
-git clone https://github.com/abilian/capn-python
-cd capn-python
+git clone https://github.com/nikileshsa/capnweb-python.git
+cd capnweb-python
 pip install -e .
 ```
 
 ## Quick Example
 
+### Server (HTTP Batch)
+
 ```python
-# Server
-from capnweb.server import Server, ServerConfig
-from capnweb.types import RpcTarget
+import asyncio
+from aiohttp import web
+from capnweb import RpcTarget, RpcError, aiohttp_batch_rpc_handler
 
 class Calculator(RpcTarget):
     async def call(self, method: str, args: list):
@@ -45,29 +47,50 @@ class Calculator(RpcTarget):
             case "add": return args[0] + args[1]
             case _: raise RpcError.not_found(f"{method} not found")
 
-    async def get_property(self, property: str):
-        raise RpcError.not_found(f"{property} not found")
+    async def get_property(self, name: str):
+        raise RpcError.not_found(f"{name} not found")
 
 async def main():
-    config = ServerConfig(host="127.0.0.1", port=8080)
-    server = Server(config)
-    server.register_capability(0, Calculator())
+    calc = Calculator()
+    app = web.Application()
+    app.router.add_post("/rpc/batch", lambda req: aiohttp_batch_rpc_handler(req, calc))
+    
+    runner = web.AppRunner(app)
+    await runner.setup()
+    await web.TCPSite(runner, "127.0.0.1", 8080).start()
+    print("Server running on http://127.0.0.1:8080/rpc/batch")
+    await asyncio.Event().wait()
 
-    async with server:
-        print("Server running on http://127.0.0.1:8080")
-        await asyncio.Event().wait()
+if __name__ == "__main__":
+    asyncio.run(main())
 ```
 
+### Client
+
 ```python
-# Client
-from capnweb.client import Client, ClientConfig
+import asyncio
+import aiohttp
+from capnweb.batch import new_http_batch_rpc_session
 
 async def main():
-    config = ClientConfig(url="http://127.0.0.1:8080/rpc/batch")
+    url = "http://127.0.0.1:8080/rpc/batch"
+    async with aiohttp.ClientSession() as http:
+        stub = await new_http_batch_rpc_session(url, http_client=http)
+        result = await stub.add(5, 3)
+        print(f"5 + 3 = {result}")  # Output: 8
 
-    async with Client(config) as client:
-        result = await client.call(0, "add", [5, 3])
-        print(f"5 + 3 = {result}")  # 8
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+### Run It
+
+```bash
+# Terminal 1
+uv run python server.py
+
+# Terminal 2
+uv run python client.py
 ```
 
 ## What is Cap'n Web?
@@ -77,9 +100,8 @@ Cap'n Web is a capability-based RPC protocol that provides:
 - **Type-safe RPC** - Fully type-hinted Python APIs
 - **Promise Pipelining** - Batch multiple dependent calls into one round-trip
 - **Bidirectional RPC** - Both client and server can export capabilities
-- **Resume Tokens** - Session restoration after disconnects
-- **Multiple Transports** - HTTP batch, WebSocket (WebTransport planned)
-- **Structured Errors** - Rich error types with custom data
+- **Multiple Transports** - HTTP batch, WebSocket, WebTransport/HTTP/3
+- **Structured Errors** - Rich error types with proper code propagation
 - **Reference Counting** - Automatic resource cleanup
 
 ## Documentation Structure
@@ -89,50 +111,55 @@ Cap'n Web is a capability-based RPC protocol that provides:
 1. Start with the **[Quickstart Guide](quickstart.md)**
 2. Review the **[API Reference](api-reference.md)** for details
 3. Explore **[Examples](../examples/)** for real-world usage
-4. Read **[Advanced Topics](advanced.md)** when needed
 
 ### For Contributors
 
 1. Understand the **[Architecture Guide](architecture.md)**
-2. Review the **[Contributing Guide](../CONTRIBUTING.md)** (if exists)
-3. Check the **[TODO](../TODO.md)** for open tasks
-4. Read the **[Changelog](../CHANGES.md)** for recent changes
+2. Check the **[TODO](../TODO.md)** for open tasks
+3. Read the **[Changelog](../CHANGES.md)** for recent changes
 
 ## Features
 
 ### Implemented ✅
 
 - HTTP batch transport (client & server)
-- WebSocket transport
+- WebSocket transport (full bidirectional RPC)
+- WebTransport/HTTP/3 support
 - Capability dispatch and method calls
-- Hook-based architecture
+- Hook-based architecture (ValueCodec, CapabilityCodec)
 - Promise pipelining
 - Bidirectional RPC (peer-to-peer)
-- Resume tokens for session restoration
 - TypeScript interoperability
-- Structured error handling
+- Structured error handling with code propagation
 - Reference counting and resource management
-- **329 tests, 85% coverage**
+- **744 tests, 70% coverage**
 
-### Planned 🚧
+## Examples
 
-- WebTransport / HTTP/3
-- Full IL (Intermediate Language) execution
-- Sphinx documentation site
-- More examples (chat, microservices)
+| Example | Transport | Description |
+|---------|-----------|-------------|
+| `calculator/` | HTTP Batch | Simple RPC calculator |
+| `batch-pipelining/` | HTTP Batch | Promise pipelining |
+| `peer-to-peer/` | HTTP Batch | Bidirectional RPC |
+| `chat/` | WebSocket | Real-time chat |
+| `task-queue/` | WebSocket | Distributed tasks |
+| `collab-docs/` | WebSocket | Collaborative editor |
+| `capability-security/` | WebSocket | Capability attenuation |
+| `microservices/` | WebSocket | Service mesh |
+| `actor-system/` | WebSocket | Supervisor/worker |
+| `webtransport/` | HTTP/3 | WebTransport demo |
 
 ## Protocol Compliance
 
 This implementation follows the [Cap'n Web protocol specification](https://github.com/cloudflare/capnweb/blob/main/protocol.md).
 
-**Compatibility:** ~98% with TypeScript reference implementation
+**Compatibility:** 100% with TypeScript reference implementation
 
 ## Community
 
-- **GitHub**: https://github.com/abilian/capn-python
-- **Issues**: https://github.com/abilian/capn-python/issues
-- **Discussions**: https://github.com/abilian/capn-python/discussions
+- **GitHub**: https://github.com/nikileshsa/capnweb-python
+- **Issues**: https://github.com/nikileshsa/capnweb-python/issues
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+Dual-licensed under MIT or Apache-2.0, at your option.

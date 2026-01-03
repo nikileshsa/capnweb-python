@@ -1,6 +1,6 @@
 # Cap'n Web Python - Quickstart Guide
 
-This guide will get you up and running with Cap'n Web Python in 5 minutes.
+Get up and running with Cap'n Web Python in 5 minutes.
 
 ## What is Cap'n Web?
 
@@ -8,15 +8,14 @@ Cap'n Web is a capability-based RPC protocol that enables:
 - **Type-safe remote procedure calls** between Python services
 - **Promise pipelining** to batch multiple dependent calls into one round-trip
 - **Bidirectional RPC** where both client and server can export capabilities
-- **Resume tokens** for session restoration after disconnects
-- **Multiple transports** (HTTP batch, WebSocket)
+- **Multiple transports** (HTTP batch, WebSocket, WebTransport)
 
 ## Installation
 
 ```bash
 # Clone the repository
-git clone https://github.com/abilian/capn-python
-cd capn-python
+git clone https://github.com/nikileshsa/capnweb-python.git
+cd capnweb-python
 
 # Install with uv (recommended)
 uv sync
@@ -25,296 +24,438 @@ uv sync
 pip install -e .
 ```
 
-## Your First RPC Service
+## Example 1: Calculator (HTTP Batch)
 
-### 1. Define Your Service
+The simplest way to get started. Great for stateless request/response RPC.
 
-Create a service by implementing the `RpcTarget` protocol:
+### Server (`server.py`)
 
 ```python
-# server.py
-from capnweb.types import RpcTarget
-from capnweb.server import Server, ServerConfig
-from capnweb.error import RpcError
+import asyncio
+from typing import Any
+from aiohttp import web
+from capnweb import RpcTarget, RpcError, aiohttp_batch_rpc_handler
 
 class Calculator(RpcTarget):
     """A simple calculator service."""
 
-    async def call(self, method: str, args: list) -> int:
-        """Handle RPC method calls."""
+    async def call(self, method: str, args: list[Any]) -> Any:
         match method:
             case "add":
                 return args[0] + args[1]
+            case "subtract":
+                return args[0] - args[1]
             case "multiply":
                 return args[0] * args[1]
+            case "divide":
+                if args[1] == 0:
+                    raise RpcError.bad_request("Division by zero")
+                return args[0] / args[1]
             case _:
-                raise RpcError.not_found(f"Method {method} not found")
+                raise RpcError.not_found(f"Method '{method}' not found")
 
-    async def get_property(self, property: str):
-        """Handle property access."""
-        raise RpcError.not_found(f"Property {property} not found")
+    async def get_property(self, name: str) -> Any:
+        raise RpcError.not_found(f"Property '{name}' not found")
 
-# Create and run server
 async def main():
-    config = ServerConfig(host="127.0.0.1", port=8080)
-    server = Server(config)
+    calculator = Calculator()
+    
+    async def rpc_handler(request: web.Request) -> web.Response:
+        return await aiohttp_batch_rpc_handler(request, calculator)
 
-    # Register the calculator at capability ID 0
-    server.register_capability(0, Calculator())
+    app = web.Application()
+    app.router.add_post("/rpc/batch", rpc_handler)
 
-    # Run the server
-    async with server:
-        print("Calculator server running on http://127.0.0.1:8080")
-        await asyncio.Event().wait()  # Run forever
+    runner = web.AppRunner(app)
+    await runner.setup()
+    await web.TCPSite(runner, "127.0.0.1", 8080).start()
+
+    print("🧮 Calculator server running on http://127.0.0.1:8080/rpc/batch")
+    await asyncio.Event().wait()
 
 if __name__ == "__main__":
-    import asyncio
     asyncio.run(main())
 ```
 
-### 2. Create a Client
-
-Connect to your service and make calls:
+### Client (`client.py`)
 
 ```python
-# client.py
 import asyncio
-from capnweb.client import Client, ClientConfig
+import aiohttp
+from capnweb.batch import new_http_batch_rpc_session
 
 async def main():
-    config = ClientConfig(url="http://127.0.0.1:8080/rpc/batch")
+    url = "http://127.0.0.1:8080/rpc/batch"
 
-    async with Client(config) as client:
-        # Simple call
-        result = await client.call(0, "add", [5, 3])
-        print(f"5 + 3 = {result}")  # 8
+    async with aiohttp.ClientSession() as http:
+        # Each call creates a new batch session
+        stub = await new_http_batch_rpc_session(url, http_client=http)
+        result = await stub.add(5, 3)
+        print(f"5 + 3 = {result}")  # Output: 8
 
-        # Another call
-        result = await client.call(0, "multiply", [4, 7])
-        print(f"4 * 7 = {result}")  # 28
+        stub = await new_http_batch_rpc_session(url, http_client=http)
+        result = await stub.multiply(7, 6)
+        print(f"7 × 6 = {result}")  # Output: 42
+
+        # Error handling
+        try:
+            stub = await new_http_batch_rpc_session(url, http_client=http)
+            await stub.divide(10, 0)
+        except Exception as e:
+            print(f"Error: {e}")  # bad_request: Division by zero
 
 if __name__ == "__main__":
     asyncio.run(main())
 ```
 
-### 3. Run It
+### Run It
 
 ```bash
 # Terminal 1 - Start server
-python server.py
+uv run python server.py
 
 # Terminal 2 - Run client
-python client.py
+uv run python client.py
 ```
 
-## Promise Pipelining
+**Expected output:**
+```
+5 + 3 = 8
+7 × 6 = 42
+Error: bad_request: Division by zero
+```
 
-One of Cap'n Web's most powerful features is **promise pipelining** - batching multiple dependent calls into a single network round-trip:
+---
+
+## Example 2: Chat (WebSocket with Bidirectional RPC)
+
+For real-time applications where the server needs to push messages to clients.
+
+### Server (`server.py`)
 
 ```python
-from capnweb.pipeline import PipelineBatch
+import asyncio
+from typing import Any
+from aiohttp import web
+from capnweb import RpcTarget, RpcError, BidirectionalSession, RpcStub
+from capnweb.ws_transport import WebSocketServerTransport
 
-async def pipeline_example():
-    config = ClientConfig(url="http://127.0.0.1:8080/rpc/batch")
+# Store connected clients
+clients: dict[str, RpcStub] = {}
 
-    async with Client(config) as client:
-        # Create a pipeline batch
-        batch = PipelineBatch(client, capability_id=0)
+class ChatServer(RpcTarget):
+    async def call(self, method: str, args: list[Any]) -> Any:
+        match method:
+            case "join":
+                username, callback = args[0], args[1]
+                clients[username] = callback
+                return {"message": f"Welcome {username}!", "users": list(clients.keys())}
+            case "sendMessage":
+                username, text = args[0], args[1]
+                # Broadcast to all clients (server calling client!)
+                for name, client in clients.items():
+                    await client.onMessage({"from": username, "text": text})
+                return {"status": "sent"}
+            case "leave":
+                username = args[0]
+                clients.pop(username, None)
+                return {"message": f"Goodbye {username}!"}
+            case _:
+                raise RpcError.not_found(f"Method '{method}' not found")
 
-        # Queue multiple calls - they execute in one round-trip!
-        call1 = batch.call("add", [10, 20])      # Returns a promise
-        call2 = batch.call("multiply", [5, 6])    # Returns a promise
-        call3 = batch.call("add", [100, 200])     # Returns a promise
+    async def get_property(self, name: str) -> Any:
+        raise RpcError.not_found(f"Property '{name}' not found")
 
-        # Execute the batch (single network request)
-        await batch.execute()
+chat_server = ChatServer()
 
-        # Await the results
-        result1 = await call1  # 30
-        result2 = await call2  # 30
-        result3 = await call3  # 300
+async def ws_handler(request: web.Request) -> web.WebSocketResponse:
+    ws = web.WebSocketResponse()
+    await ws.prepare(request)
+    
+    transport = WebSocketServerTransport(ws)
+    session = BidirectionalSession(transport, chat_server)
+    session.start()
+    
+    async for msg in ws:
+        if msg.type == web.WSMsgType.TEXT:
+            transport.feed_message(msg.data)
+    
+    transport.set_closed()
+    return ws
 
-        print(f"Results: {result1}, {result2}, {result3}")
+async def main():
+    app = web.Application()
+    app.router.add_get("/rpc/ws", ws_handler)
+    
+    runner = web.AppRunner(app)
+    await runner.setup()
+    await web.TCPSite(runner, "127.0.0.1", 8080).start()
+    
+    print("💬 Chat server running on ws://127.0.0.1:8080/rpc/ws")
+    await asyncio.Event().wait()
+
+if __name__ == "__main__":
+    asyncio.run(main())
 ```
 
-**Without pipelining:** 3 network round-trips
-**With pipelining:** 1 network round-trip ⚡
-
-## Working with Capabilities
-
-Capabilities are unforgeable references to remote objects. They can be:
-- Returned from RPC calls
-- Passed as arguments to other calls
-- Stored and reused
+### Client (`client.py`)
 
 ```python
-class UserService(RpcTarget):
-    """Service that returns user capabilities."""
+import asyncio
+from typing import Any
+from capnweb import RpcTarget, RpcError, RpcStub, BidirectionalSession, create_stub
+from capnweb.ws_transport import WebSocketClientTransport
 
-    async def call(self, method: str, args: list):
-        match method:
-            case "getUser":
-                # Return a capability (another RpcTarget)
-                return User(name=args[0])
-            case _:
-                raise RpcError.not_found(f"Method {method} not found")
+class ChatCallback(RpcTarget):
+    """Receives messages from server."""
+    
+    async def call(self, method: str, args: list[Any]) -> Any:
+        if method == "onMessage":
+            msg = args[0]
+            print(f"📨 {msg['from']}: {msg['text']}")
+            return None
+        raise RpcError.not_found(f"Method '{method}' not found")
 
-    async def get_property(self, property: str):
-        raise RpcError.not_found(f"Property {property} not found")
+    async def get_property(self, name: str) -> Any:
+        raise RpcError.not_found(f"Property '{name}' not found")
 
-class User(RpcTarget):
-    """A user capability."""
+async def main():
+    # Connect to server
+    transport = WebSocketClientTransport("ws://127.0.0.1:8080/rpc/ws")
+    await transport.connect()
+    
+    callback = ChatCallback()
+    session = BidirectionalSession(transport, callback)
+    session.start()
+    
+    server = RpcStub(session.get_main_stub())
+    
+    # Create a stub from our callback to pass to server
+    callback_stub = create_stub(callback)
+    
+    # Join the chat
+    result = await server.join("Alice", callback_stub)
+    print(f"Joined: {result}")
+    
+    # Send a message (will be broadcast back to us)
+    await server.sendMessage("Alice", "Hello everyone!")
+    
+    await asyncio.sleep(0.5)  # Wait for broadcast
+    
+    # Leave
+    await server.leave("Alice")
+    
+    await session.stop()
+    await transport.close()
 
-    def __init__(self, name: str):
-        self.name = name
-
-    async def call(self, method: str, args: list):
-        match method:
-            case "getName":
-                return self.name
-            case "greet":
-                return f"Hello, I'm {self.name}!"
-            case _:
-                raise RpcError.not_found(f"Method {method} not found")
-
-    async def get_property(self, property: str):
-        match property:
-            case "name":
-                return self.name
-            case _:
-                raise RpcError.not_found(f"Property {property} not found")
-
-# Client usage
-async def use_capabilities():
-    async with Client(config) as client:
-        # Get a user capability
-        user_stub = await client.call(0, "getUser", ["Alice"])
-
-        # Call methods on the capability
-        name = await user_stub.getName()
-        greeting = await user_stub.greet()
-
-        print(name)      # "Alice"
-        print(greeting)  # "Hello, I'm Alice!"
-
-        # Access properties
-        name_prop = await user_stub.name
-        print(name_prop)  # "Alice"
+if __name__ == "__main__":
+    asyncio.run(main())
 ```
+
+### Run It
+
+```bash
+# Terminal 1 - Start server
+uv run python server.py
+
+# Terminal 2 - Run client
+uv run python client.py
+```
+
+**Expected output:**
+```
+Joined: {'message': 'Welcome Alice!', 'users': ['Alice']}
+📨 Alice: Hello everyone!
+```
+
+---
+
+## Example 3: Capability Security (Bank Account)
+
+Demonstrates capability attenuation - creating read-only views of objects.
+
+### Server (`server.py`)
+
+```python
+import asyncio
+from typing import Any
+from aiohttp import web
+from capnweb import RpcTarget, RpcError, BidirectionalSession
+from capnweb.ws_transport import WebSocketServerTransport
+
+class BankAccount(RpcTarget):
+    def __init__(self, balance: float = 0):
+        self._balance = balance
+
+    async def call(self, method: str, args: list[Any]) -> Any:
+        match method:
+            case "getBalance":
+                return self._balance
+            case "deposit":
+                self._balance += args[0]
+                return {"newBalance": self._balance}
+            case "withdraw":
+                if args[0] > self._balance:
+                    raise RpcError.bad_request("Insufficient funds")
+                self._balance -= args[0]
+                return {"newBalance": self._balance}
+            case "createReadOnlyView":
+                # Return an attenuated capability!
+                return ReadOnlyAccount(self)
+            case _:
+                raise RpcError.not_found(f"Method '{method}' not found")
+
+    async def get_property(self, name: str) -> Any:
+        raise RpcError.not_found(f"Property '{name}' not found")
+
+class ReadOnlyAccount(RpcTarget):
+    """Attenuated capability - can only read, not modify."""
+    
+    def __init__(self, account: BankAccount):
+        self._account = account
+
+    async def call(self, method: str, args: list[Any]) -> Any:
+        if method == "getBalance":
+            return self._account._balance
+        raise RpcError.permission_denied(f"Read-only account cannot '{method}'")
+
+    async def get_property(self, name: str) -> Any:
+        raise RpcError.not_found(f"Property '{name}' not found")
+
+class BankGateway(RpcTarget):
+    async def call(self, method: str, args: list[Any]) -> Any:
+        if method == "createAccount":
+            return BankAccount(balance=args[0])
+        raise RpcError.not_found(f"Method '{method}' not found")
+
+    async def get_property(self, name: str) -> Any:
+        raise RpcError.not_found(f"Property '{name}' not found")
+
+gateway = BankGateway()
+
+async def ws_handler(request: web.Request) -> web.WebSocketResponse:
+    ws = web.WebSocketResponse()
+    await ws.prepare(request)
+    transport = WebSocketServerTransport(ws)
+    session = BidirectionalSession(transport, gateway)
+    session.start()
+    async for msg in ws:
+        if msg.type == web.WSMsgType.TEXT:
+            transport.feed_message(msg.data)
+    transport.set_closed()
+    return ws
+
+async def main():
+    app = web.Application()
+    app.router.add_get("/rpc/ws", ws_handler)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    await web.TCPSite(runner, "127.0.0.1", 8080).start()
+    print("🏦 Bank server running on ws://127.0.0.1:8080/rpc/ws")
+    await asyncio.Event().wait()
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+### Client (`client.py`)
+
+```python
+import asyncio
+from capnweb import UnifiedClient, UnifiedClientConfig, RpcError
+
+async def main():
+    config = UnifiedClientConfig(url="ws://127.0.0.1:8080/rpc/ws")
+    
+    async with UnifiedClient(config) as client:
+        main_stub = client.get_main_stub()
+        
+        # Create account with $1000
+        account = await main_stub.createAccount(1000.0)
+        print(f"Balance: ${await account.getBalance()}")
+        
+        # Deposit and withdraw
+        await account.deposit(500.0)
+        print(f"After deposit: ${await account.getBalance()}")
+        
+        await account.withdraw(200.0)
+        print(f"After withdraw: ${await account.getBalance()}")
+        
+        # Create read-only view
+        readonly = await account.createReadOnlyView()
+        print(f"Read-only balance: ${await readonly.getBalance()}")
+        
+        # Try to deposit on read-only (should fail!)
+        try:
+            await readonly.deposit(100.0)
+        except RpcError as e:
+            print(f"Blocked: {e.code}")  # permission_denied
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+### Run It
+
+```bash
+# Terminal 1
+uv run python server.py
+
+# Terminal 2
+uv run python client.py
+```
+
+**Expected output:**
+```
+Balance: $1000.0
+After deposit: $1500.0
+After withdraw: $1300.0
+Read-only balance: $1300.0
+Blocked: permission_denied
+```
+
+---
 
 ## Error Handling
 
-Cap'n Web has structured error handling:
+Cap'n Web has structured error handling with proper error codes:
 
 ```python
-from capnweb.error import RpcError, ErrorCode
+from capnweb import RpcError
 
 # Server side - raise structured errors
-async def call(self, method: str, args: list):
+async def call(self, method: str, args: list) -> Any:
     if method == "divide":
         if args[1] == 0:
-            raise RpcError.bad_request(
-                "Division by zero",
-                data={"dividend": args[0], "divisor": args[1]}
-            )
+            raise RpcError.bad_request("Division by zero")
         return args[0] / args[1]
     raise RpcError.not_found(f"Method {method} not found")
 
 # Client side - catch errors
 try:
-    result = await client.call(0, "divide", [10, 0])
+    result = await stub.divide(10, 0)
 except RpcError as e:
     print(f"Error: {e.code} - {e.message}")
-    print(f"Data: {e.data}")
     # Error: bad_request - Division by zero
-    # Data: {'dividend': 10, 'divisor': 0}
 ```
+
+**Available error codes:**
+- `RpcError.not_found(msg)` - Method/property doesn't exist
+- `RpcError.bad_request(msg)` - Invalid arguments
+- `RpcError.permission_denied(msg)` - Not authorized
+- `RpcError.internal(msg)` - Server error
+
+---
 
 ## Next Steps
 
+- **[Examples](../examples/)** - See all 10 working examples
 - **[Architecture Guide](architecture.md)** - Understand the hook-based architecture
 - **[API Reference](api-reference.md)** - Detailed API documentation
-- **[Examples](../examples/)** - More complete examples
-- **[Advanced Topics](advanced.md)** - Resume tokens, bidirectional RPC, transports
-
-## Common Patterns
-
-### Resource Cleanup
-
-Always use async context managers to ensure proper cleanup:
-
-```python
-# Good - resources cleaned up automatically
-async with Client(config) as client:
-    result = await client.call(0, "method", [])
-
-# Also good - manual cleanup
-client = Client(config)
-try:
-    result = await client.call(0, "method", [])
-finally:
-    await client.close()
-```
-
-### Structuring Services
-
-Organize your services into classes:
-
-```python
-class MyService(RpcTarget):
-    def __init__(self, db_connection):
-        self.db = db_connection
-
-    async def call(self, method: str, args: list):
-        # Use match statements for method dispatch
-        match method:
-            case "create":
-                return await self._create(args[0])
-            case "read":
-                return await self._read(args[0])
-            case "update":
-                return await self._update(args[0], args[1])
-            case "delete":
-                return await self._delete(args[0])
-            case _:
-                raise RpcError.not_found(f"Method {method} not found")
-
-    async def _create(self, data):
-        # Implementation
-        pass
-
-    async def _read(self, id):
-        # Implementation
-        pass
-
-    # ... etc
-```
-
-## Troubleshooting
-
-### Server not responding
-
-Check that:
-1. Server is running on the correct port
-2. Client URL matches server address
-3. Firewall isn't blocking the port
-
-### Import errors
-
-Make sure you've installed the package:
-```bash
-uv sync  # or pip install -e .
-```
-
-### Type errors
-
-Enable type checking during development:
-```bash
-pyrefly check
-```
+- **[Wire Format](WIRE_FORMAT.md)** - Protocol details
 
 ## Getting Help
 
-- **GitHub Issues**: https://github.com/abilian/capn-python/issues
-- **Examples**: See the `examples/` directory
-- **Tests**: The test suite has many usage examples
+- **GitHub Issues**: https://github.com/nikileshsa/capnweb-python/issues
+- **Examples**: See the `examples/` directory for 10 complete examples
+- **Tests**: The test suite (744 tests) has many usage examples
