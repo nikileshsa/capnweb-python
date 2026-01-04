@@ -157,10 +157,13 @@ class TestWireExpressionConversion:
         assert wire_expression_to_json("hello") == "hello"
 
     def test_array_conversion(self) -> None:
-        """Test array conversion."""
-        arr = [1, 2, "test", None]
+        """Test array conversion.
+
+        Per protocol.md, literal arrays on the wire must be escaped using [[...]].
+        """
+        arr = [[1, 2, "test", None]]
         result = wire_expression_to_json(arr)
-        assert result == [1, 2, "test", None]
+        assert result == [[1, 2, "test", None]]
 
     def test_object_conversion(self) -> None:
         """Test object/dict conversion."""

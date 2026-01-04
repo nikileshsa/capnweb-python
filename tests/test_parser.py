@@ -57,7 +57,7 @@ class TestParserBasics:
         session = BidirectionalSession(transport_a, None)
         parser = Parser(importer=session)
 
-        wire_value = [1, 2, 3, "four", 5.0]
+        wire_value = [[1, 2, 3, "four", 5.0]]
         result = parser.parse(wire_value)
 
         assert result.value == [1, 2, 3, "four", 5.0]
@@ -68,7 +68,7 @@ class TestParserBasics:
         session = BidirectionalSession(transport_a, None)
         parser = Parser(importer=session)
 
-        wire_value = [[1, 2], [3, 4], [5]]
+        wire_value = [[[[1, 2]], [[3, 4]], [[5]]]]
         result = parser.parse(wire_value)
 
         assert result.value == [[1, 2], [3, 4], [5]]
@@ -105,15 +105,21 @@ class TestParserBasics:
         parser = Parser(importer=session)
 
         wire_value = {
+            "users": [[
+                {"id": 1, "name": "Alice"},
+                {"id": 2, "name": "Bob"},
+            ]],
+            "metadata": {"total": 2, "page": 1},
+        }
+        result = parser.parse(wire_value)
+
+        assert result.value == {
             "users": [
                 {"id": 1, "name": "Alice"},
                 {"id": 2, "name": "Bob"},
             ],
             "metadata": {"total": 2, "page": 1},
         }
-        result = parser.parse(wire_value)
-
-        assert result.value == wire_value
 
 
 class TestParseExport:
@@ -153,7 +159,7 @@ class TestParseExport:
         session = BidirectionalSession(transport_a, None)
         parser = Parser(importer=session)
 
-        wire_value = [["export", 1], ["export", 2], {"name": "test"}]
+        wire_value = [[["export", 1], ["export", 2], {"name": "test"}]]
         result = parser.parse(wire_value)
 
         assert isinstance(result.value[0], RpcStub)
@@ -168,7 +174,7 @@ class TestParseExport:
         session = BidirectionalSession(transport_a, None)
         parser = Parser(importer=session)
 
-        wire_value = [["export", 1], ["export", 1]]
+        wire_value = [[["export", 1], ["export", 1]]]
         parser.parse(wire_value)
 
         # Both should reference the same import hook (same ID)
@@ -209,7 +215,7 @@ class TestParsePromise:
         session = BidirectionalSession(transport_a, None)
         parser = Parser(importer=session)
 
-        wire_value = [["promise", 1], ["promise", 2]]
+        wire_value = [[["promise", 1], ["promise", 2]]]
         result = parser.parse(wire_value)
 
         assert isinstance(result.value[0], RpcPromise)
@@ -352,7 +358,7 @@ class TestParseEdgeCases:
         session = BidirectionalSession(transport_a, None)
         parser = Parser(importer=session)
 
-        result = parser.parse([])
+        result = parser.parse([[]])
         assert result.value == []
 
     def test_parse_empty_dict(self):
@@ -370,8 +376,8 @@ class TestParseEdgeCases:
         session = BidirectionalSession(transport_a, None)
         parser = Parser(importer=session)
 
-        # ["hello"] should be a regular array, not a special form
-        wire_value = ["hello"]
+        # ["hello"] is a regular array, and must be escaped on the wire as [["hello"]]
+        wire_value = [["hello"]]
         result = parser.parse(wire_value)
 
         assert result.value == ["hello"]
@@ -386,7 +392,7 @@ class TestParseEdgeCases:
             "capability": ["export", 1],
             "promise": ["promise", 2],
             "error": ["error", "not_found", "Not found"],
-            "data": [1, 2, 3],
+            "data": [[1, 2, 3]],
         }
         result = parser.parse(wire_value)
 

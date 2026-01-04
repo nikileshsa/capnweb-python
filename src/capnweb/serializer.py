@@ -8,6 +8,7 @@ wire expressions.
 
 from __future__ import annotations
 
+import base64
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -105,6 +106,13 @@ class Serializer:
                 # Ensure it's owned first
                 value.ensure_deep_copied()
                 return self.serialize(value.value)
+
+            case bytes() | bytearray() | memoryview():
+                # Encode bytes-like values as ["bytes", base64]
+                # per protocol.md.
+                raw = bytes(value)
+                encoded = base64.b64encode(raw).decode("ascii")
+                return ["bytes", encoded]
 
             case _:
                 # For other types, try to serialize as-is

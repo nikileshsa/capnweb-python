@@ -194,10 +194,10 @@ class TestSerializerPromises:
 
         result = serializer.serialize(promise)
 
-        # Should be exported as ["export", id] or ["promise", id]
+        # Per protocol.md, promises are exported as ["promise", id]
         assert isinstance(result, list)
         assert len(result) == 2
-        assert result[0] in ("export", "promise")
+        assert result[0] == "promise"
 
     def test_serialize_promise_in_dict(self):
         """Test serializing promise nested in dictionary."""
@@ -212,7 +212,7 @@ class TestSerializerPromises:
 
         assert result["status"] == "pending"
         assert isinstance(result["result"], list)
-        assert result["result"][0] in ("export", "promise")
+        assert result["result"][0] == "promise"
 
 
 class TestSerializerEdgeCases:
@@ -272,15 +272,18 @@ class TestSerializerEdgeCases:
         assert result == [[1, 2, 3]]
 
     def test_serialize_bytes(self):
-        """Test serializing bytes (should be passed through)."""
+        """Test serializing bytes.
+
+        Per protocol.md, bytes must be encoded as ["bytes", base64].
+        """
         transport_a, transport_b = create_transport_pair()
         session = BidirectionalSession(transport_a, None)
         serializer = Serializer(exporter=session)
 
-        # Bytes should be serialized as-is (or converted to base64 depending on impl)
         result = serializer.serialize(b"hello")
-        # The exact format depends on implementation
-        assert result is not None
+        assert isinstance(result, list)
+        assert result[0] == "bytes"
+        assert isinstance(result[1], str)
 
 
 class TestSerializerRoundtrip:
