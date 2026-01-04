@@ -36,11 +36,14 @@ class TestCallbacks:
         from capnweb.stubs import RpcStub
         from capnweb.ws_session import WebSocketRpcClient
         
+        print(f"[DEBUG] test_simple_callback_ts starting, port={ts_server.port}", flush=True)
+        
         class Callback(RpcTarget):
             def __init__(self):
                 self.calls: list[str] = []
             
             async def call(self, method: str, args: list) -> Any:
+                print(f"[DEBUG] Callback.call({method}, {args})", flush=True)
                 if method == "notify":
                     self.calls.append(args[0])
                     return f"received: {args[0]}"
@@ -50,17 +53,25 @@ class TestCallbacks:
                 raise AttributeError(f"Unknown property: {name}")
         
         callback = Callback()
-        async with WebSocketRpcClient(
-            f"ws://127.0.0.1:{ts_server.port}/",
-            local_main=callback,
-        ) as client:
-            stub = RpcStub(client._session.get_export(0).dup())
-            await client.call(0, "registerCallback", [stub])
-            
-            result = await client.call(0, "triggerCallback", [])
-            
-            assert callback.calls == ["ping"]
-            assert result == "received: ping"
+        print("[DEBUG] Creating WebSocketRpcClient...", flush=True)
+        async with asyncio.timeout(30):
+            async with WebSocketRpcClient(
+                f"ws://127.0.0.1:{ts_server.port}/",
+                local_main=callback,
+            ) as client:
+                print("[DEBUG] Connected to server", flush=True)
+                stub = RpcStub(client._session.get_export(0).dup())
+                print("[DEBUG] Calling registerCallback...", flush=True)
+                await client.call(0, "registerCallback", [stub])
+                print("[DEBUG] registerCallback done", flush=True)
+                
+                print("[DEBUG] Calling triggerCallback...", flush=True)
+                result = await client.call(0, "triggerCallback", [])
+                print(f"[DEBUG] triggerCallback result: {result}", flush=True)
+                
+                assert callback.calls == ["ping"]
+                assert result == "received: ping"
+        print("[DEBUG] test_simple_callback_ts done", flush=True)
     
     async def test_simple_callback_py(self, py_server: ServerProcess):
         """Server can call a simple callback on client."""
