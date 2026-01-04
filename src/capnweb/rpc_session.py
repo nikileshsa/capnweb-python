@@ -365,11 +365,17 @@ class BidirectionalSession:
         path_keys = [PropertyKey(p) for p in path]
         
         # Serialize args if provided
+        # NOTE: Per TypeScript behavior, pipeline args are sent UN-ESCAPED on the wire.
+        # The serializer wraps arrays as [[...]], but TypeScript unwraps this for pipeline
+        # args (see rpc.ts line 539). We match this by unwrapping after serialization.
         serialized_args = None
         if args is not None:
             from capnweb.serializer import Serializer
             serializer = Serializer(exporter=self)
             serialized_args = serializer.serialize_payload(args)
+            # Unwrap the escaped array: [[5]] -> [5]
+            if isinstance(serialized_args, list) and len(serialized_args) == 1:
+                serialized_args = serialized_args[0]
         
         pipeline = WirePipeline(
             import_id=target_id,
@@ -778,12 +784,14 @@ class BidirectionalSession:
             target_hook = target_entry.hook
             
             # Parse args through Parser to convert ["export", id] into RpcStub
-            # This matches TypeScript which uses Evaluator.evaluate() on push args
+            # NOTE: Per TypeScript behavior, pipeline args are sent UN-ESCAPED on the wire.
+            # TypeScript wraps them before parsing: evaluate([args]) (see serialize.ts line 442).
+            # We match this by wrapping the args before parsing.
             from capnweb.parser import Parser
             parser = Parser(importer=self)
-            args_payload = parser.parse(
-                expression.args if expression.args is not None else []
-            )
+            raw_args = expression.args if expression.args is not None else []
+            # Wrap args to match TypeScript's evaluate([args]) behavior
+            args_payload = parser.parse([raw_args])
             
             # Extract path
             path: list[str | int] = [

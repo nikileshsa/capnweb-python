@@ -1,0 +1,20 @@
+{
+  "name": "capnweb-interop-tests",
+  "version": "1.0.0",
+  "description": "Interop tests for TypeScript/Python protocol compliance",
+  "type": "module",
+  "scripts": {
+    "ts-server": "tsx ts_server.ts",
+    "test": "echo 'Run pytest from py-capnweb directory'"
+  },
+  "dependencies": {
+    "capnweb": "file:../../../capnweb",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/ws": "^8.5.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  }
+}

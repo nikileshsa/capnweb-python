@@ -271,8 +271,10 @@ async def handle_websocket_rpc(
     session.start()
     
     try:
-        # Keep connection alive until closed
-        await session.drain()
+        # Keep connection alive until WebSocket is closed or session aborts
+        # We wait on the abort event rather than drain() because drain() returns
+        # immediately when there are no pending operations.
+        await session._abort_event.wait()
     except Exception as e:
         logger.debug("WebSocket session ended: %s", e)
     finally:
