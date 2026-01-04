@@ -8,7 +8,7 @@
     "test": "echo 'Run pytest from py-capnweb directory'"
   },
   "dependencies": {
-    "capnweb": "file:../../../capnweb",
+    "capnweb": "^0.4.0",
     "ws": "^8.18.0"
   },
   "devDependencies": {
