@@ -55,12 +55,12 @@ async def main(port: int) -> None:
     
     runner = web.AppRunner(app)
     await runner.setup()
-    site = web.TCPSite(runner, 'localhost', port)
+    site = web.TCPSite(runner, '127.0.0.1', port)
     await site.start()
     
-    print(f"Python interop server listening on port {port}")
-    print(f"WebSocket: ws://localhost:{port}/rpc")
-    print(f"HTTP Batch: http://localhost:{port}/")
+    print(f"Python interop server listening on 127.0.0.1:{port}")
+    print(f"WebSocket: ws://127.0.0.1:{port}/rpc")
+    print(f"HTTP Batch: http://127.0.0.1:{port}/")
     
     # Keep running until interrupted
     try:

@@ -182,10 +182,10 @@ wsServer.on('connection', (ws) => {
   newWebSocketRpcSession(ws as any, new TestTarget());
 });
 
-httpServer.listen(PORT, () => {
-  console.log(`TypeScript interop server listening on port ${PORT}`);
-  console.log(`WebSocket: ws://localhost:${PORT}/`);
-  console.log(`HTTP Batch: http://localhost:${PORT}/`);
+httpServer.listen(PORT, '127.0.0.1', () => {
+  console.log(`TypeScript interop server listening on 127.0.0.1:${PORT}`);
+  console.log(`WebSocket: ws://127.0.0.1:${PORT}/`);
+  console.log(`HTTP Batch: http://127.0.0.1:${PORT}/`);
 });
 
 // Handle shutdown
