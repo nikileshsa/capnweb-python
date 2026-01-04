@@ -16,43 +16,48 @@ Complete reference for all public APIs in Cap'n Web Python.
 
 ### ClientConfig
 
-Configuration for the RPC client.
+Configuration for the RPC client (Pydantic model).
 
 ```python
-@dataclass(frozen=True)
-class ClientConfig:
-    url: str                     # Server URL (http:// or ws://)
-    timeout: float = 30.0        # Request timeout in seconds
-    max_retries: int = 3         # Max retry attempts
-    retry_delay: float = 1.0     # Delay between retries
+class ClientConfig(BaseModel):
+    url: str                     # RPC endpoint URL (ws://, wss://, http://, https://)
+    timeout: float = 30.0        # Request timeout in seconds (must be > 0)
+    local_main: Any | None = None  # Optional capability to expose to server
+    options: RpcSessionConfig | None = None  # Optional session configuration
 ```
 
 **Example:**
 ```python
+from capnweb.config import ClientConfig
+
 config = ClientConfig(
-    url="http://localhost:8080/rpc/batch",
-    timeout=10.0,
-    max_retries=5
+    url="ws://localhost:8080/rpc",
+    timeout=10.0
 )
 ```
 
-### Client
+### WebSocketRpcClient
 
-Main client class for making RPC calls.
+Main client class for making RPC calls over WebSocket.
 
 ```python
-class Client(RpcSession):
-    def __init__(self, config: ClientConfig)
+class WebSocketRpcClient:
+    def __init__(
+        self,
+        url: str,
+        local_main: Any | None = None,
+        options: RpcSessionOptions | None = None,
+    )
 ```
 
 #### Methods
 
-##### `async call(capability_id: int, method: str, args: list) -> Any`
+##### `async call(cap_id: int, method: str, args: list) -> Any`
 
 Make a single RPC call.
 
 **Parameters:**
-- `capability_id`: ID of the capability to call (usually 0 for root)
+- `cap_id`: ID of the capability to call (usually 0 for main)
 - `method`: Name of the method to call
 - `args`: List of arguments to pass
 
@@ -62,124 +67,141 @@ Make a single RPC call.
 
 **Example:**
 ```python
-async with Client(config) as client:
+from capnweb.ws_session import WebSocketRpcClient
+
+async with WebSocketRpcClient("ws://localhost:8080/rpc") as client:
     result = await client.call(0, "add", [5, 3])
     print(result)  # 8
 ```
 
-##### `async close() -> None`
+##### `get_main_stub() -> RpcStub`
 
-Close the client and clean up resources.
+Get the server's main capability as an RpcStub.
 
 **Example:**
 ```python
-client = Client(config)
-try:
-    result = await client.call(0, "method", [])
-finally:
-    await client.close()
+async with WebSocketRpcClient("ws://localhost:8080/rpc") as client:
+    stub = client.get_main_stub()
+    result = await stub.add(5, 3)
 ```
+
+##### `async close() -> None`
+
+Close the connection and clean up resources.
 
 ##### Context Manager Support
 
 ```python
-async with Client(config) as client:
-    # Client automatically closed on exit
+async with WebSocketRpcClient(url) as client:
+    # Client automatically connected and closed
     result = await client.call(0, "method", [])
 ```
 
 ## Server
 
-### ServerConfig
+### WebSocketServerConfig
 
-Configuration for the RPC server.
+Configuration for the WebSocket RPC server (Pydantic model).
 
 ```python
-@dataclass(frozen=True)
-class ServerConfig:
-    host: str = "127.0.0.1"              # Listen address
-    port: int = 8080                     # Listen port
-    max_batch_size: int = 100            # Max messages per batch
-    include_stack_traces: bool = False   # Include stack traces (dev only!)
-    resume_token_ttl: float = 3600.0     # Token TTL in seconds
+class WebSocketServerConfig(BaseModel):
+    host: str = "0.0.0.0"                # Host to bind to
+    port: int = 8080                     # Port to bind to (1-65535)
+    path: str = "/rpc"                   # WebSocket endpoint path
+    local_main_factory: Callable[[], Any] | None = None  # Per-connection capability factory
+    options: RpcSessionConfig | None = None  # Optional session configuration
 ```
-
-**Security Note:** Never set `include_stack_traces=True` in production!
 
 **Example:**
 ```python
-config = ServerConfig(
-    host="0.0.0.0",  # Listen on all interfaces
+from capnweb.config import WebSocketServerConfig
+
+config = WebSocketServerConfig(
+    host="0.0.0.0",
     port=8080,
-    max_batch_size=200
+    path="/rpc",
+    local_main_factory=lambda: MyService()
 )
 ```
 
-### Server
+### RpcSessionConfig
 
-Main server class for hosting RPC services.
+Session-level configuration options.
 
 ```python
-class Server(RpcSession):
-    def __init__(self, config: ServerConfig)
+class RpcSessionConfig(BaseModel):
+    on_send_error: Callable[[Exception], Exception | None] | None = None
+```
+
+**Use case:** Redact sensitive information from error stack traces before sending.
+
+### BidirectionalSession
+
+Core session class for bidirectional RPC.
+
+```python
+class BidirectionalSession:
+    def __init__(
+        self,
+        transport: Transport,
+        local_main: Any | None = None,
+        options: RpcSessionOptions | None = None,
+    )
 ```
 
 #### Methods
 
-##### `register_capability(export_id: int, target: RpcTarget) -> None`
+##### `start() -> None`
 
-Register a local object as a capability.
-
-**Parameters:**
-- `export_id`: ID to assign (usually 0 for root capability)
-- `target`: Object implementing `RpcTarget` protocol
-
-**Example:**
-```python
-server = Server(config)
-server.register_capability(0, MyService())
-```
-
-##### `async start() -> None`
-
-Start the server.
-
-**Example:**
-```python
-server = Server(config)
-server.register_capability(0, service)
-await server.start()
-```
+Start the session's read loop.
 
 ##### `async stop() -> None`
 
-Stop the server gracefully.
+Stop the session gracefully.
 
-##### Context Manager Support
+##### `async drain() -> None`
 
-```python
-async with Server(config) as server:
-    server.register_capability(0, service)
-    # Server automatically started and stopped
-    await asyncio.Event().wait()
-```
+Wait for all pending operations to complete.
+
+##### `get_main_stub() -> StubHook`
+
+Get the peer's main capability as a StubHook.
 
 ## RPC Targets
 
-### RpcTarget Protocol
+### RpcTarget Base Class
 
-Protocol for objects that can be exposed as RPC capabilities.
+Base class for objects that can be exposed as RPC capabilities.
 
 ```python
-class RpcTarget(Protocol):
-    async def call(self, method: str, args: list) -> Any:
-        """Handle method calls."""
+class RpcTarget(ABC):
+    async def call(self, method: str, args: list[Any]) -> Any:
+        """Handle method calls. Default dispatches to public methods."""
 
-    async def get_property(self, property: str) -> Any:
-        """Handle property access."""
+    async def get_property(self, prop: str) -> Any:
+        """Handle property access. Default returns public attributes."""
 ```
 
-#### Implementation Example
+#### Ergonomic Style (Recommended)
+
+Just define public methods - they're automatically exposed:
+
+```python
+class Calculator(RpcTarget):
+    def add(self, a: int, b: int) -> int:
+        return a + b
+
+    def multiply(self, a: int, b: int) -> int:
+        return a * b
+
+    async def fetch_data(self, id: int) -> dict:
+        # Async methods are also supported
+        return {"id": id, "data": "..."}
+```
+
+#### Explicit Style (Custom Dispatch)
+
+Override `call()` for custom dispatch logic:
 
 ```python
 class Calculator(RpcTarget):
@@ -191,14 +213,14 @@ class Calculator(RpcTarget):
                 return args[0] * args[1]
             case _:
                 raise RpcError.not_found(f"Method {method} not found")
-
-    async def get_property(self, property: str):
-        match property:
-            case "name":
-                return "Calculator"
-            case _:
-                raise RpcError.not_found(f"Property {property} not found")
 ```
+
+### Reserved Methods
+
+These methods are never exposed as RPC endpoints:
+- `call`, `get_property`, `dispose`
+- Methods starting with `_`
+- Python special methods (`__init__`, `__str__`, etc.)
 
 ### Optional: dispose()
 
@@ -209,11 +231,8 @@ class DatabaseService(RpcTarget):
     def __init__(self, connection):
         self.conn = connection
 
-    async def call(self, method: str, args: list):
-        # ... implementation
-
-    async def get_property(self, property: str):
-        # ... implementation
+    def query(self, sql: str) -> list:
+        return self.conn.execute(sql).fetchall()
 
     def dispose(self):
         """Called when capability is released."""
@@ -228,11 +247,19 @@ Represents a remote capability (returned from RPC calls).
 
 ```python
 class RpcStub:
-    def __getattr__(self, name: str) -> RpcStub:
-        """Access properties."""
+    __slots__ = ('_hook',)
+
+    def __getattr__(self, name: str) -> RpcPromise:
+        """Access properties, returns a promise."""
 
     def __call__(self, *args) -> RpcPromise:
         """Call as a function."""
+
+    def map(self, mapper: Callable, path: list | None = None) -> RpcPromise:
+        """Apply a mapper function to array elements remotely."""
+
+    def dispose() -> None:
+        """Release the capability."""
 ```
 
 **Example:**
@@ -242,19 +269,28 @@ name = await user.name           # Property access
 greeting = await user.greet()    # Method call
 ```
 
+#### Context Manager Support
+
+```python
+async with stub as s:
+    result = await s.process()
+# Automatically disposed on exit
+```
+
 #### Methods
 
 ##### `dispose() -> None`
 
 Release the capability and clean up resources.
 
+##### `map(mapper, path=None) -> RpcPromise`
+
+Apply a mapper function to array elements without transferring data.
+
 **Example:**
 ```python
-stub = await client.call(0, "getResource", [])
-try:
-    result = await stub.process()
-finally:
-    stub.dispose()
+# Map over an array on the server
+result = await stub.data.map(lambda x: x.double())
 ```
 
 ### RpcPromise
