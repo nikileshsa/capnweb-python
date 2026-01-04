@@ -97,7 +97,9 @@ class TestTarget extends RpcTarget {
   }
   
   registerCallback(cb: RpcStub<any>): string {
-    this.callback = cb;
+    // Must dup() to keep the callback alive after the method returns
+    // Otherwise the RPC system will release it when registerCallback returns
+    this.callback = cb.dup();
     return "registered";
   }
   

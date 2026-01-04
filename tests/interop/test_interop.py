@@ -39,7 +39,7 @@ from capnweb.ws_session import WebSocketRpcClient, WebSocketRpcServer
 from capnweb.stubs import RpcStub
 from capnweb.payload import RpcPayload
 
-from test_target import TestTarget, Counter
+from .test_target import TestTarget, Counter
 
 
 # Ports for test servers
