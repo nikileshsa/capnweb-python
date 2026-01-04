@@ -36,14 +36,14 @@ PY_SERVER_BASE_PORT = 19200
 def find_free_port() -> int:
     """Find a free port on localhost."""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(("localhost", 0))
+        s.bind(("127.0.0.1", 0))
         return s.getsockname()[1]
 
 
 def is_port_in_use(port: int) -> bool:
     """Check if a port is in use."""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        return s.connect_ex(("localhost", port)) == 0
+        return s.connect_ex(("127.0.0.1", port)) == 0
 
 
 async def wait_for_port(port: int, timeout: float = 10.0) -> bool:
@@ -261,7 +261,7 @@ class InteropClient:
 def py_client_to_ts(ts_server: ServerProcess):
     """Create a Python client connected to TypeScript server."""
     async def _create():
-        client = InteropClient(f"ws://localhost:{ts_server.port}/")
+        client = InteropClient(f"ws://127.0.0.1:{ts_server.port}/")
         await client.__aenter__()
         return client
     return _create
@@ -271,7 +271,7 @@ def py_client_to_ts(ts_server: ServerProcess):
 def py_client_to_py(py_server: ServerProcess):
     """Create a Python client connected to Python server."""
     async def _create():
-        client = InteropClient(f"ws://localhost:{py_server.port}/rpc")
+        client = InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc")
         await client.__aenter__()
         return client
     return _create

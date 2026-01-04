@@ -51,7 +51,7 @@ class TestCallbacks:
         
         callback = Callback()
         async with WebSocketRpcClient(
-            f"ws://localhost:{ts_server.port}/",
+            f"ws://127.0.0.1:{ts_server.port}/",
             local_main=callback,
         ) as client:
             stub = RpcStub(client._session.get_export(0).dup())
@@ -83,7 +83,7 @@ class TestCallbacks:
         
         callback = Callback()
         async with WebSocketRpcClient(
-            f"ws://localhost:{py_server.port}/rpc",
+            f"ws://127.0.0.1:{py_server.port}/rpc",
             local_main=callback,
         ) as client:
             stub = RpcStub(client._session.get_export(0).dup())
@@ -115,7 +115,7 @@ class TestCallbacks:
         
         counter = Counter()
         async with WebSocketRpcClient(
-            f"ws://localhost:{ts_server.port}/",
+            f"ws://127.0.0.1:{ts_server.port}/",
             local_main=counter,
         ) as client:
             stub = RpcStub(client._session.get_export(0).dup())
@@ -152,7 +152,7 @@ class TestCallbacks:
         
         counter = Counter()
         async with WebSocketRpcClient(
-            f"ws://localhost:{py_server.port}/rpc",
+            f"ws://127.0.0.1:{py_server.port}/rpc",
             local_main=counter,
         ) as client:
             stub = RpcStub(client._session.get_export(0).dup())
@@ -175,7 +175,7 @@ class TestPipelinedCalls:
     
     async def test_pipelined_calls_ts(self, ts_server: ServerProcess):
         """Multiple calls can be sent before waiting for results."""
-        async with InteropClient(f"ws://localhost:{ts_server.port}/") as client:
+        async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             # Start multiple calls without awaiting
             tasks = [
                 asyncio.create_task(client.call("square", [i]))
@@ -189,7 +189,7 @@ class TestPipelinedCalls:
     
     async def test_pipelined_calls_py(self, py_server: ServerProcess):
         """Multiple calls can be sent before waiting for results."""
-        async with InteropClient(f"ws://localhost:{py_server.port}/rpc") as client:
+        async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
             tasks = [
                 asyncio.create_task(client.call("square", [i]))
                 for i in range(5)
@@ -201,7 +201,7 @@ class TestPipelinedCalls:
     
     async def test_interleaved_calls_ts(self, ts_server: ServerProcess):
         """Interleaved calls with different methods work correctly."""
-        async with InteropClient(f"ws://localhost:{ts_server.port}/") as client:
+        async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             tasks = [
                 asyncio.create_task(client.call("square", [2])),
                 asyncio.create_task(client.call("greet", ["Alice"])),
@@ -220,7 +220,7 @@ class TestPipelinedCalls:
     
     async def test_interleaved_calls_py(self, py_server: ServerProcess):
         """Interleaved calls with different methods work correctly."""
-        async with InteropClient(f"ws://localhost:{py_server.port}/rpc") as client:
+        async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
             tasks = [
                 asyncio.create_task(client.call("square", [2])),
                 asyncio.create_task(client.call("greet", ["Alice"])),
@@ -248,7 +248,7 @@ class TestCapabilityChains:
     
     async def test_counter_chain_ts(self, ts_server: ServerProcess):
         """Create counter, pass it back, increment it."""
-        async with InteropClient(f"ws://localhost:{ts_server.port}/") as client:
+        async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             # Create a counter on the server
             counter = await client.call("makeCounter", [10])
             
@@ -257,7 +257,7 @@ class TestCapabilityChains:
     
     async def test_counter_chain_py(self, py_server: ServerProcess):
         """Create counter, pass it back, increment it."""
-        async with InteropClient(f"ws://localhost:{py_server.port}/rpc") as client:
+        async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
             counter = await client.call("makeCounter", [10])
             assert counter is not None
     
@@ -279,7 +279,7 @@ class TestCapabilityChains:
         
         func = SquareFunction()
         async with WebSocketRpcClient(
-            f"ws://localhost:{ts_server.port}/",
+            f"ws://127.0.0.1:{ts_server.port}/",
             local_main=func,
         ) as client:
             stub = RpcStub(client._session.get_export(0).dup())
@@ -304,7 +304,7 @@ class TestCapabilityChains:
         
         func = SquareFunction()
         async with WebSocketRpcClient(
-            f"ws://localhost:{py_server.port}/rpc",
+            f"ws://127.0.0.1:{py_server.port}/rpc",
             local_main=func,
         ) as client:
             stub = RpcStub(client._session.get_export(0).dup())
@@ -342,7 +342,7 @@ class TestConcurrentBidirectional:
         
         callback = Callback()
         async with WebSocketRpcClient(
-            f"ws://localhost:{ts_server.port}/",
+            f"ws://127.0.0.1:{ts_server.port}/",
             local_main=callback,
         ) as client:
             stub = RpcStub(client._session.get_export(0).dup())
@@ -385,7 +385,7 @@ class TestConcurrentBidirectional:
         
         callback = Callback()
         async with WebSocketRpcClient(
-            f"ws://localhost:{py_server.port}/rpc",
+            f"ws://127.0.0.1:{py_server.port}/rpc",
             local_main=callback,
         ) as client:
             stub = RpcStub(client._session.get_export(0).dup())
@@ -417,7 +417,7 @@ class TestSelfReference:
         """Server can call method on passed self-reference."""
         from capnweb.ws_session import WebSocketRpcClient
         
-        async with WebSocketRpcClient(f"ws://localhost:{ts_server.port}/") as client:
+        async with WebSocketRpcClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             # Get a stub for the server's main capability
             # Then pass it back to the server to call
             result = await client.call(0, "square", [5])
@@ -427,6 +427,6 @@ class TestSelfReference:
         """Server can call method on passed self-reference."""
         from capnweb.ws_session import WebSocketRpcClient
         
-        async with WebSocketRpcClient(f"ws://localhost:{py_server.port}/rpc") as client:
+        async with WebSocketRpcClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
             result = await client.call(0, "square", [5])
             assert result == 25

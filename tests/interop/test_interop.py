@@ -140,80 +140,80 @@ class TestPyClientTsServer:
     
     async def test_simple_square(self, ts_server):
         """Test simple square call."""
-        async with WebSocketRpcClient(f"ws://localhost:{TS_SERVER_PORT}/") as client:
+        async with WebSocketRpcClient(f"ws://127.0.0.1:{TS_SERVER_PORT}/") as client:
             result = await client.call(0, "square", [5])
             assert result == 25
     
     async def test_add(self, ts_server):
         """Test add call."""
-        async with WebSocketRpcClient(f"ws://localhost:{TS_SERVER_PORT}/") as client:
+        async with WebSocketRpcClient(f"ws://127.0.0.1:{TS_SERVER_PORT}/") as client:
             result = await client.call(0, "add", [3, 7])
             assert result == 10
     
     async def test_greet(self, ts_server):
         """Test greet call."""
-        async with WebSocketRpcClient(f"ws://localhost:{TS_SERVER_PORT}/") as client:
+        async with WebSocketRpcClient(f"ws://127.0.0.1:{TS_SERVER_PORT}/") as client:
             result = await client.call(0, "greet", ["World"])
             assert result == "Hello, World!"
     
     async def test_echo_string(self, ts_server):
         """Test echo with string."""
-        async with WebSocketRpcClient(f"ws://localhost:{TS_SERVER_PORT}/") as client:
+        async with WebSocketRpcClient(f"ws://127.0.0.1:{TS_SERVER_PORT}/") as client:
             result = await client.call(0, "echo", ["test message"])
             assert result == "test message"
     
     async def test_echo_number(self, ts_server):
         """Test echo with number."""
-        async with WebSocketRpcClient(f"ws://localhost:{TS_SERVER_PORT}/") as client:
+        async with WebSocketRpcClient(f"ws://127.0.0.1:{TS_SERVER_PORT}/") as client:
             result = await client.call(0, "echo", [42])
             assert result == 42
     
     async def test_echo_array(self, ts_server):
         """Test echo with array."""
-        async with WebSocketRpcClient(f"ws://localhost:{TS_SERVER_PORT}/") as client:
+        async with WebSocketRpcClient(f"ws://127.0.0.1:{TS_SERVER_PORT}/") as client:
             result = await client.call(0, "echo", [[1, 2, 3]])
             assert result == [1, 2, 3]
     
     async def test_echo_nested_object(self, ts_server):
         """Test echo with nested object."""
-        async with WebSocketRpcClient(f"ws://localhost:{TS_SERVER_PORT}/") as client:
+        async with WebSocketRpcClient(f"ws://127.0.0.1:{TS_SERVER_PORT}/") as client:
             obj = {"foo": {"bar": 123}, "baz": [1, 2, 3]}
             result = await client.call(0, "echo", [obj])
             assert result == obj
     
     async def test_generate_fibonacci(self, ts_server):
         """Test generateFibonacci."""
-        async with WebSocketRpcClient(f"ws://localhost:{TS_SERVER_PORT}/") as client:
+        async with WebSocketRpcClient(f"ws://127.0.0.1:{TS_SERVER_PORT}/") as client:
             result = await client.call(0, "generateFibonacci", [10])
             assert result == [0, 1, 1, 2, 3, 5, 8, 13, 21, 34]
     
     async def test_get_list(self, ts_server):
         """Test getList."""
-        async with WebSocketRpcClient(f"ws://localhost:{TS_SERVER_PORT}/") as client:
+        async with WebSocketRpcClient(f"ws://127.0.0.1:{TS_SERVER_PORT}/") as client:
             result = await client.call(0, "getList", [])
             assert result == [1, 2, 3, 4, 5]
     
     async def test_return_null(self, ts_server):
         """Test returnNull."""
-        async with WebSocketRpcClient(f"ws://localhost:{TS_SERVER_PORT}/") as client:
+        async with WebSocketRpcClient(f"ws://127.0.0.1:{TS_SERVER_PORT}/") as client:
             result = await client.call(0, "returnNull", [])
             assert result is None
     
     async def test_return_number(self, ts_server):
         """Test returnNumber."""
-        async with WebSocketRpcClient(f"ws://localhost:{TS_SERVER_PORT}/") as client:
+        async with WebSocketRpcClient(f"ws://127.0.0.1:{TS_SERVER_PORT}/") as client:
             result = await client.call(0, "returnNumber", [123])
             assert result == 123
     
     async def test_throw_error(self, ts_server):
         """Test throwError returns an error."""
-        async with WebSocketRpcClient(f"ws://localhost:{TS_SERVER_PORT}/") as client:
+        async with WebSocketRpcClient(f"ws://127.0.0.1:{TS_SERVER_PORT}/") as client:
             with pytest.raises(Exception):
                 await client.call(0, "throwError", [])
     
     async def test_make_counter(self, ts_server):
         """Test makeCounter returns a capability."""
-        async with WebSocketRpcClient(f"ws://localhost:{TS_SERVER_PORT}/") as client:
+        async with WebSocketRpcClient(f"ws://127.0.0.1:{TS_SERVER_PORT}/") as client:
             # Get counter capability
             counter = await client.call(0, "makeCounter", [10])
             # Counter should be a stub we can call
@@ -238,7 +238,7 @@ class TestPyClientTsServer:
         local = ClientCallback()
         
         async with WebSocketRpcClient(
-            f"ws://localhost:{TS_SERVER_PORT}/",
+            f"ws://127.0.0.1:{TS_SERVER_PORT}/",
             local_main=local,
         ) as client:
             assert client._session is not None
@@ -264,31 +264,31 @@ class TestPyClientPyServer:
     
     async def test_simple_square(self, py_server):
         """Test simple square call."""
-        async with WebSocketRpcClient(f"ws://localhost:{PY_SERVER_PORT}/rpc") as client:
+        async with WebSocketRpcClient(f"ws://127.0.0.1:{PY_SERVER_PORT}/rpc") as client:
             result = await client.call(0, "square", [5])
             assert result == 25
     
     async def test_add(self, py_server):
         """Test add call."""
-        async with WebSocketRpcClient(f"ws://localhost:{PY_SERVER_PORT}/rpc") as client:
+        async with WebSocketRpcClient(f"ws://127.0.0.1:{PY_SERVER_PORT}/rpc") as client:
             result = await client.call(0, "add", [3, 7])
             assert result == 10
     
     async def test_greet(self, py_server):
         """Test greet call."""
-        async with WebSocketRpcClient(f"ws://localhost:{PY_SERVER_PORT}/rpc") as client:
+        async with WebSocketRpcClient(f"ws://127.0.0.1:{PY_SERVER_PORT}/rpc") as client:
             result = await client.call(0, "greet", ["World"])
             assert result == "Hello, World!"
     
     async def test_echo_array(self, py_server):
         """Test echo with array."""
-        async with WebSocketRpcClient(f"ws://localhost:{PY_SERVER_PORT}/rpc") as client:
+        async with WebSocketRpcClient(f"ws://127.0.0.1:{PY_SERVER_PORT}/rpc") as client:
             result = await client.call(0, "echo", [[1, 2, 3]])
             assert result == [1, 2, 3]
     
     async def test_generate_fibonacci(self, py_server):
         """Test generateFibonacci."""
-        async with WebSocketRpcClient(f"ws://localhost:{PY_SERVER_PORT}/rpc") as client:
+        async with WebSocketRpcClient(f"ws://127.0.0.1:{PY_SERVER_PORT}/rpc") as client:
             result = await client.call(0, "generateFibonacci", [10])
             assert result == [0, 1, 1, 2, 3, 5, 8, 13, 21, 34]
     
@@ -311,7 +311,7 @@ class TestPyClientPyServer:
         local = ClientCallback()
         
         async with WebSocketRpcClient(
-            f"ws://localhost:{PY_SERVER_PORT}/rpc",
+            f"ws://127.0.0.1:{PY_SERVER_PORT}/rpc",
             local_main=local,
         ) as client:
             assert client._session is not None

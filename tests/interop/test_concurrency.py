@@ -27,7 +27,7 @@ class TestConcurrentCalls:
     
     async def test_10_concurrent_calls_ts(self, ts_server: ServerProcess):
         """10 simultaneous calls complete correctly."""
-        async with InteropClient(f"ws://localhost:{ts_server.port}/") as client:
+        async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             tasks = [client.call("square", [i]) for i in range(10)]
             results = await asyncio.gather(*tasks)
             
@@ -37,7 +37,7 @@ class TestConcurrentCalls:
     
     async def test_10_concurrent_calls_py(self, py_server: ServerProcess):
         """10 simultaneous calls complete correctly."""
-        async with InteropClient(f"ws://localhost:{py_server.port}/rpc") as client:
+        async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
             tasks = [client.call("square", [i]) for i in range(10)]
             results = await asyncio.gather(*tasks)
             
@@ -47,7 +47,7 @@ class TestConcurrentCalls:
     
     async def test_50_concurrent_calls_ts(self, ts_server: ServerProcess):
         """50 simultaneous calls complete correctly."""
-        async with InteropClient(f"ws://localhost:{ts_server.port}/") as client:
+        async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             tasks = [client.call("add", [i, i + 1]) for i in range(50)]
             results = await asyncio.gather(*tasks)
             
@@ -57,7 +57,7 @@ class TestConcurrentCalls:
     
     async def test_50_concurrent_calls_py(self, py_server: ServerProcess):
         """50 simultaneous calls complete correctly."""
-        async with InteropClient(f"ws://localhost:{py_server.port}/rpc") as client:
+        async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
             tasks = [client.call("add", [i, i + 1]) for i in range(50)]
             results = await asyncio.gather(*tasks)
             
@@ -67,7 +67,7 @@ class TestConcurrentCalls:
     
     async def test_mixed_methods_concurrent_ts(self, ts_server: ServerProcess):
         """Concurrent calls to different methods work."""
-        async with InteropClient(f"ws://localhost:{ts_server.port}/") as client:
+        async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             tasks = [
                 client.call("square", [5]),
                 client.call("add", [3, 4]),
@@ -85,7 +85,7 @@ class TestConcurrentCalls:
     
     async def test_mixed_methods_concurrent_py(self, py_server: ServerProcess):
         """Concurrent calls to different methods work."""
-        async with InteropClient(f"ws://localhost:{py_server.port}/rpc") as client:
+        async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
             tasks = [
                 client.call("square", [5]),
                 client.call("add", [3, 4]),
@@ -112,7 +112,7 @@ class TestCallOrdering:
     
     async def test_responses_match_requests_ts(self, ts_server: ServerProcess):
         """Each response matches its corresponding request."""
-        async with InteropClient(f"ws://localhost:{ts_server.port}/") as client:
+        async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             # Create tasks with unique identifiable results
             tasks = []
             expected = []
@@ -126,7 +126,7 @@ class TestCallOrdering:
     
     async def test_responses_match_requests_py(self, py_server: ServerProcess):
         """Each response matches its corresponding request."""
-        async with InteropClient(f"ws://localhost:{py_server.port}/rpc") as client:
+        async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
             tasks = []
             expected = []
             for i in range(20):
@@ -139,7 +139,7 @@ class TestCallOrdering:
     
     async def test_interleaved_calls_ts(self, ts_server: ServerProcess):
         """Interleaved calls and awaits work correctly."""
-        async with InteropClient(f"ws://localhost:{ts_server.port}/") as client:
+        async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             # Start some calls
             task1 = asyncio.create_task(client.call("square", [5]))
             task2 = asyncio.create_task(client.call("square", [6]))
@@ -158,7 +158,7 @@ class TestCallOrdering:
     
     async def test_interleaved_calls_py(self, py_server: ServerProcess):
         """Interleaved calls and awaits work correctly."""
-        async with InteropClient(f"ws://localhost:{py_server.port}/rpc") as client:
+        async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
             task1 = asyncio.create_task(client.call("square", [5]))
             task2 = asyncio.create_task(client.call("square", [6]))
             task3 = asyncio.create_task(client.call("square", [7]))
@@ -182,21 +182,21 @@ class TestHighThroughput:
     
     async def test_100_sequential_calls_ts(self, ts_server: ServerProcess):
         """100 sequential calls complete correctly."""
-        async with InteropClient(f"ws://localhost:{ts_server.port}/") as client:
+        async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             for i in range(100):
                 result = await client.call("square", [i])
                 assert result == i * i
     
     async def test_100_sequential_calls_py(self, py_server: ServerProcess):
         """100 sequential calls complete correctly."""
-        async with InteropClient(f"ws://localhost:{py_server.port}/rpc") as client:
+        async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
             for i in range(100):
                 result = await client.call("square", [i])
                 assert result == i * i
     
     async def test_100_concurrent_calls_ts(self, ts_server: ServerProcess):
         """100 concurrent calls complete correctly."""
-        async with InteropClient(f"ws://localhost:{ts_server.port}/") as client:
+        async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             tasks = [client.call("square", [i]) for i in range(100)]
             results = await asyncio.gather(*tasks)
             
@@ -206,7 +206,7 @@ class TestHighThroughput:
     
     async def test_100_concurrent_calls_py(self, py_server: ServerProcess):
         """100 concurrent calls complete correctly."""
-        async with InteropClient(f"ws://localhost:{py_server.port}/rpc") as client:
+        async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
             tasks = [client.call("square", [i]) for i in range(100)]
             results = await asyncio.gather(*tasks)
             
@@ -216,7 +216,7 @@ class TestHighThroughput:
     
     async def test_batched_concurrent_calls_ts(self, ts_server: ServerProcess):
         """Multiple batches of concurrent calls work."""
-        async with InteropClient(f"ws://localhost:{ts_server.port}/") as client:
+        async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             for batch in range(5):
                 tasks = [client.call("add", [batch * 10 + i, 1]) for i in range(10)]
                 results = await asyncio.gather(*tasks)
@@ -226,7 +226,7 @@ class TestHighThroughput:
     
     async def test_batched_concurrent_calls_py(self, py_server: ServerProcess):
         """Multiple batches of concurrent calls work."""
-        async with InteropClient(f"ws://localhost:{py_server.port}/rpc") as client:
+        async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
             for batch in range(5):
                 tasks = [client.call("add", [batch * 10 + i, 1]) for i in range(10)]
                 results = await asyncio.gather(*tasks)
@@ -245,7 +245,7 @@ class TestConcurrentErrors:
     
     async def test_some_calls_fail_ts(self, ts_server: ServerProcess):
         """Some calls failing doesn't affect others."""
-        async with InteropClient(f"ws://localhost:{ts_server.port}/") as client:
+        async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             tasks = [
                 client.call("square", [5]),
                 client.call("throwError", ["error1"]),
@@ -264,7 +264,7 @@ class TestConcurrentErrors:
     
     async def test_some_calls_fail_py(self, py_server: ServerProcess):
         """Some calls failing doesn't affect others."""
-        async with InteropClient(f"ws://localhost:{py_server.port}/rpc") as client:
+        async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
             tasks = [
                 client.call("square", [5]),
                 client.call("throwError", ["error1"]),
@@ -283,7 +283,7 @@ class TestConcurrentErrors:
     
     async def test_all_calls_fail_ts(self, ts_server: ServerProcess):
         """All calls failing is handled correctly."""
-        async with InteropClient(f"ws://localhost:{ts_server.port}/") as client:
+        async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             tasks = [
                 client.call("throwError", [f"error{i}"])
                 for i in range(5)
@@ -295,7 +295,7 @@ class TestConcurrentErrors:
     
     async def test_all_calls_fail_py(self, py_server: ServerProcess):
         """All calls failing is handled correctly."""
-        async with InteropClient(f"ws://localhost:{py_server.port}/rpc") as client:
+        async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
             tasks = [
                 client.call("throwError", [f"error{i}"])
                 for i in range(5)
@@ -316,7 +316,7 @@ class TestConcurrentCapabilities:
     
     async def test_concurrent_capability_creation_ts(self, ts_server: ServerProcess):
         """Creating multiple capabilities concurrently works."""
-        async with InteropClient(f"ws://localhost:{ts_server.port}/") as client:
+        async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             tasks = [client.call("makeCounter", [i]) for i in range(5)]
             counters = await asyncio.gather(*tasks)
             
@@ -325,7 +325,7 @@ class TestConcurrentCapabilities:
     
     async def test_concurrent_capability_creation_py(self, py_server: ServerProcess):
         """Creating multiple capabilities concurrently works."""
-        async with InteropClient(f"ws://localhost:{py_server.port}/rpc") as client:
+        async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
             tasks = [client.call("makeCounter", [i]) for i in range(5)]
             counters = await asyncio.gather(*tasks)
             
@@ -343,7 +343,7 @@ class TestConcurrentBidirectional:
     
     async def test_concurrent_different_methods_ts(self, ts_server: ServerProcess):
         """Concurrent calls to different methods work correctly."""
-        async with InteropClient(f"ws://localhost:{ts_server.port}/") as client:
+        async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             # Mix of different operations running concurrently
             tasks = [
                 client.call("square", [5]),
@@ -362,7 +362,7 @@ class TestConcurrentBidirectional:
     
     async def test_concurrent_different_methods_py(self, py_server: ServerProcess):
         """Concurrent calls to different methods work correctly."""
-        async with InteropClient(f"ws://localhost:{py_server.port}/rpc") as client:
+        async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
             tasks = [
                 client.call("square", [5]),
                 client.call("add", [10, 20]),
@@ -380,7 +380,7 @@ class TestConcurrentBidirectional:
     
     async def test_rapid_fire_calls_ts(self, ts_server: ServerProcess):
         """Rapid fire calls without waiting for responses."""
-        async with InteropClient(f"ws://localhost:{ts_server.port}/") as client:
+        async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             # Start many calls without awaiting
             tasks = []
             for i in range(30):
@@ -394,7 +394,7 @@ class TestConcurrentBidirectional:
     
     async def test_rapid_fire_calls_py(self, py_server: ServerProcess):
         """Rapid fire calls without waiting for responses."""
-        async with InteropClient(f"ws://localhost:{py_server.port}/rpc") as client:
+        async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
             tasks = []
             for i in range(30):
                 tasks.append(asyncio.create_task(client.call("square", [i])))

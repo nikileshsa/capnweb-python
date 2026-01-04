@@ -32,7 +32,7 @@ class TestServerExceptions:
     
     async def test_server_throws_error_ts(self, ts_server: ServerProcess):
         """Server exception is propagated to client."""
-        async with InteropClient(f"ws://localhost:{ts_server.port}/") as client:
+        async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             with pytest.raises(Exception) as exc_info:
                 await client.call("throwError", [])
             
@@ -42,7 +42,7 @@ class TestServerExceptions:
     
     async def test_server_throws_error_py(self, py_server: ServerProcess):
         """Server exception is propagated to client."""
-        async with InteropClient(f"ws://localhost:{py_server.port}/rpc") as client:
+        async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
             with pytest.raises(Exception) as exc_info:
                 await client.call("throwError", [])
             
@@ -51,7 +51,7 @@ class TestServerExceptions:
     
     async def test_error_does_not_break_session_ts(self, ts_server: ServerProcess):
         """Error in one call doesn't break subsequent calls."""
-        async with InteropClient(f"ws://localhost:{ts_server.port}/") as client:
+        async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             # First call succeeds
             result1 = await client.call("square", [5])
             assert result1 == 25
@@ -66,7 +66,7 @@ class TestServerExceptions:
     
     async def test_error_does_not_break_session_py(self, py_server: ServerProcess):
         """Error in one call doesn't break subsequent calls."""
-        async with InteropClient(f"ws://localhost:{py_server.port}/rpc") as client:
+        async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
             result1 = await client.call("square", [5])
             assert result1 == 25
             
@@ -87,7 +87,7 @@ class TestMethodNotFound:
     
     async def test_unknown_method_ts(self, ts_server: ServerProcess):
         """Calling unknown method raises error."""
-        async with InteropClient(f"ws://localhost:{ts_server.port}/") as client:
+        async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             with pytest.raises(Exception) as exc_info:
                 await client.call("nonExistentMethod", [])
             
@@ -96,7 +96,7 @@ class TestMethodNotFound:
     
     async def test_unknown_method_py(self, py_server: ServerProcess):
         """Calling unknown method raises error."""
-        async with InteropClient(f"ws://localhost:{py_server.port}/rpc") as client:
+        async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
             with pytest.raises(Exception) as exc_info:
                 await client.call("nonExistentMethod", [])
             
@@ -104,7 +104,7 @@ class TestMethodNotFound:
     
     async def test_unknown_method_does_not_break_session_ts(self, ts_server: ServerProcess):
         """Unknown method error doesn't break subsequent calls."""
-        async with InteropClient(f"ws://localhost:{ts_server.port}/") as client:
+        async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             result1 = await client.call("square", [5])
             assert result1 == 25
             
@@ -116,7 +116,7 @@ class TestMethodNotFound:
     
     async def test_unknown_method_does_not_break_session_py(self, py_server: ServerProcess):
         """Unknown method error doesn't break subsequent calls."""
-        async with InteropClient(f"ws://localhost:{py_server.port}/rpc") as client:
+        async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
             result1 = await client.call("square", [5])
             assert result1 == 25
             
@@ -137,7 +137,7 @@ class TestConcurrentErrors:
     
     async def test_concurrent_calls_with_one_error_ts(self, ts_server: ServerProcess):
         """One error in concurrent calls doesn't affect others."""
-        async with InteropClient(f"ws://localhost:{ts_server.port}/") as client:
+        async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             async def call_square(n):
                 return await client.call("square", [n])
             
@@ -165,7 +165,7 @@ class TestConcurrentErrors:
     
     async def test_concurrent_calls_with_one_error_py(self, py_server: ServerProcess):
         """One error in concurrent calls doesn't affect others."""
-        async with InteropClient(f"ws://localhost:{py_server.port}/rpc") as client:
+        async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
             async def call_square(n):
                 return await client.call("square", [n])
             
@@ -216,7 +216,7 @@ class TestCallbackErrors:
         
         local = ErrorCallback()
         async with WebSocketRpcClient(
-            f"ws://localhost:{ts_server.port}/",
+            f"ws://127.0.0.1:{ts_server.port}/",
             local_main=local,
         ) as client:
             callback_stub = RpcStub(client._session.get_export(0).dup())
@@ -243,7 +243,7 @@ class TestCallbackErrors:
         
         local = ErrorCallback()
         async with WebSocketRpcClient(
-            f"ws://localhost:{py_server.port}/rpc",
+            f"ws://127.0.0.1:{py_server.port}/rpc",
             local_main=local,
         ) as client:
             callback_stub = RpcStub(client._session.get_export(0).dup())
@@ -263,14 +263,14 @@ class TestTimeouts:
     
     async def test_client_timeout_ts(self, ts_server: ServerProcess):
         """Client-side timeout works correctly."""
-        async with InteropClient(f"ws://localhost:{ts_server.port}/") as client:
+        async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             # Normal call should complete quickly
             result = await client.call_with_timeout("square", [5], timeout=5.0)
             assert result == 25
     
     async def test_client_timeout_py(self, py_server: ServerProcess):
         """Client-side timeout works correctly."""
-        async with InteropClient(f"ws://localhost:{py_server.port}/rpc") as client:
+        async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
             result = await client.call_with_timeout("square", [5], timeout=5.0)
             assert result == 25
 
@@ -288,14 +288,14 @@ class TestConnectionErrors:
         from capnweb.ws_session import WebSocketRpcClient
         
         with pytest.raises(Exception):
-            async with WebSocketRpcClient("ws://localhost:59999/") as client:
+            async with WebSocketRpcClient("ws://127.0.0.1:59999/") as client:
                 await client.call(0, "square", [5])
     
     async def test_server_shutdown_during_call_ts(self, ts_server_fresh: ServerProcess):
         """Server shutdown during call is handled gracefully."""
         from capnweb.ws_session import WebSocketRpcClient
         
-        async with WebSocketRpcClient(f"ws://localhost:{ts_server_fresh.port}/") as client:
+        async with WebSocketRpcClient(f"ws://127.0.0.1:{ts_server_fresh.port}/") as client:
             # Make a successful call first
             result = await client.call(0, "square", [5])
             assert result == 25
@@ -314,7 +314,7 @@ class TestConnectionErrors:
         """Server shutdown during call is handled gracefully."""
         from capnweb.ws_session import WebSocketRpcClient
         
-        async with WebSocketRpcClient(f"ws://localhost:{py_server_fresh.port}/rpc") as client:
+        async with WebSocketRpcClient(f"ws://127.0.0.1:{py_server_fresh.port}/rpc") as client:
             result = await client.call(0, "square", [5])
             assert result == 25
             

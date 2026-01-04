@@ -29,7 +29,7 @@ class TestHighThroughput:
     
     async def test_500_sequential_calls_ts(self, ts_server: ServerProcess):
         """500 sequential calls complete correctly."""
-        async with InteropClient(f"ws://localhost:{ts_server.port}/") as client:
+        async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             start = time.time()
             for i in range(500):
                 result = await client.call("square", [i % 100])
@@ -41,7 +41,7 @@ class TestHighThroughput:
     
     async def test_500_sequential_calls_py(self, py_server: ServerProcess):
         """500 sequential calls complete correctly."""
-        async with InteropClient(f"ws://localhost:{py_server.port}/rpc") as client:
+        async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
             start = time.time()
             for i in range(500):
                 result = await client.call("square", [i % 100])
@@ -52,7 +52,7 @@ class TestHighThroughput:
     
     async def test_200_concurrent_calls_ts(self, ts_server: ServerProcess):
         """200 concurrent calls complete correctly."""
-        async with InteropClient(f"ws://localhost:{ts_server.port}/") as client:
+        async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             start = time.time()
             tasks = [client.call("add", [i, i + 1]) for i in range(200)]
             results = await asyncio.gather(*tasks)
@@ -67,7 +67,7 @@ class TestHighThroughput:
     
     async def test_200_concurrent_calls_py(self, py_server: ServerProcess):
         """200 concurrent calls complete correctly."""
-        async with InteropClient(f"ws://localhost:{py_server.port}/rpc") as client:
+        async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
             start = time.time()
             tasks = [client.call("add", [i, i + 1]) for i in range(200)]
             results = await asyncio.gather(*tasks)
@@ -90,35 +90,35 @@ class TestLargePayloads:
     
     async def test_1mb_string_ts(self, ts_server: ServerProcess):
         """1MB string payload round-trips correctly."""
-        async with InteropClient(f"ws://localhost:{ts_server.port}/") as client:
+        async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             large_string = "x" * (1024 * 1024)  # 1MB
             result = await client.call("echo", [large_string])
             assert result == large_string
     
     async def test_1mb_string_py(self, py_server: ServerProcess):
         """1MB string payload round-trips correctly."""
-        async with InteropClient(f"ws://localhost:{py_server.port}/rpc") as client:
+        async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
             large_string = "x" * (1024 * 1024)  # 1MB
             result = await client.call("echo", [large_string])
             assert result == large_string
     
     async def test_large_array_ts(self, ts_server: ServerProcess):
         """Large array (10000 elements) round-trips correctly."""
-        async with InteropClient(f"ws://localhost:{ts_server.port}/") as client:
+        async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             large_array = list(range(10000))
             result = await client.call("echo", [large_array])
             assert result == large_array
     
     async def test_large_array_py(self, py_server: ServerProcess):
         """Large array (10000 elements) round-trips correctly."""
-        async with InteropClient(f"ws://localhost:{py_server.port}/rpc") as client:
+        async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
             large_array = list(range(10000))
             result = await client.call("echo", [large_array])
             assert result == large_array
     
     async def test_large_nested_object_ts(self, ts_server: ServerProcess):
         """Large nested object round-trips correctly."""
-        async with InteropClient(f"ws://localhost:{ts_server.port}/") as client:
+        async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             # Create object with 1000 keys
             large_obj = {f"key_{i}": {"value": i, "nested": {"data": f"item_{i}"}} for i in range(1000)}
             result = await client.call("echo", [large_obj])
@@ -126,7 +126,7 @@ class TestLargePayloads:
     
     async def test_large_nested_object_py(self, py_server: ServerProcess):
         """Large nested object round-trips correctly."""
-        async with InteropClient(f"ws://localhost:{py_server.port}/rpc") as client:
+        async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
             large_obj = {f"key_{i}": {"value": i, "nested": {"data": f"item_{i}"}} for i in range(1000)}
             result = await client.call("echo", [large_obj])
             assert result == large_obj
@@ -143,7 +143,7 @@ class TestManyConnections:
     async def test_20_concurrent_connections_ts(self, ts_server: ServerProcess):
         """20 concurrent connections work correctly."""
         async def client_task(client_id: int) -> int:
-            async with InteropClient(f"ws://localhost:{ts_server.port}/") as client:
+            async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
                 result = await client.call("square", [client_id])
                 return result
         
@@ -156,7 +156,7 @@ class TestManyConnections:
     async def test_20_concurrent_connections_py(self, py_server: ServerProcess):
         """20 concurrent connections work correctly."""
         async def client_task(client_id: int) -> int:
-            async with InteropClient(f"ws://localhost:{py_server.port}/rpc") as client:
+            async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
                 result = await client.call("square", [client_id])
                 return result
         
@@ -169,7 +169,7 @@ class TestManyConnections:
     async def test_connections_with_multiple_calls_ts(self, ts_server: ServerProcess):
         """Multiple connections each making multiple calls."""
         async def client_task(client_id: int) -> list[int]:
-            async with InteropClient(f"ws://localhost:{ts_server.port}/") as client:
+            async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
                 results = []
                 for j in range(10):
                     result = await client.call("add", [client_id, j])
@@ -186,7 +186,7 @@ class TestManyConnections:
     async def test_connections_with_multiple_calls_py(self, py_server: ServerProcess):
         """Multiple connections each making multiple calls."""
         async def client_task(client_id: int) -> list[int]:
-            async with InteropClient(f"ws://localhost:{py_server.port}/rpc") as client:
+            async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
                 results = []
                 for j in range(10):
                     result = await client.call("add", [client_id, j])
@@ -211,7 +211,7 @@ class TestSustainedLoad:
     
     async def test_sustained_calls_5_seconds_ts(self, ts_server: ServerProcess):
         """Sustained calls for 5 seconds work correctly."""
-        async with InteropClient(f"ws://localhost:{ts_server.port}/") as client:
+        async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             start = time.time()
             call_count = 0
             
@@ -225,7 +225,7 @@ class TestSustainedLoad:
     
     async def test_sustained_calls_5_seconds_py(self, py_server: ServerProcess):
         """Sustained calls for 5 seconds work correctly."""
-        async with InteropClient(f"ws://localhost:{py_server.port}/rpc") as client:
+        async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
             start = time.time()
             call_count = 0
             
@@ -238,7 +238,7 @@ class TestSustainedLoad:
     
     async def test_sustained_concurrent_calls_ts(self, ts_server: ServerProcess):
         """Sustained concurrent calls for 3 seconds."""
-        async with InteropClient(f"ws://localhost:{ts_server.port}/") as client:
+        async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             start = time.time()
             batch_count = 0
             
@@ -254,7 +254,7 @@ class TestSustainedLoad:
     
     async def test_sustained_concurrent_calls_py(self, py_server: ServerProcess):
         """Sustained concurrent calls for 3 seconds."""
-        async with InteropClient(f"ws://localhost:{py_server.port}/rpc") as client:
+        async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
             start = time.time()
             batch_count = 0
             
@@ -279,7 +279,7 @@ class TestBurstTraffic:
     
     async def test_burst_then_idle_ts(self, ts_server: ServerProcess):
         """Burst of calls, then idle, then more calls."""
-        async with InteropClient(f"ws://localhost:{ts_server.port}/") as client:
+        async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             # Burst 1
             tasks = [client.call("square", [i]) for i in range(50)]
             results = await asyncio.gather(*tasks)
@@ -295,7 +295,7 @@ class TestBurstTraffic:
     
     async def test_burst_then_idle_py(self, py_server: ServerProcess):
         """Burst of calls, then idle, then more calls."""
-        async with InteropClient(f"ws://localhost:{py_server.port}/rpc") as client:
+        async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
             # Burst 1
             tasks = [client.call("square", [i]) for i in range(50)]
             results = await asyncio.gather(*tasks)
@@ -311,7 +311,7 @@ class TestBurstTraffic:
     
     async def test_alternating_bursts_ts(self, ts_server: ServerProcess):
         """Alternating bursts and single calls."""
-        async with InteropClient(f"ws://localhost:{ts_server.port}/") as client:
+        async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             for round_num in range(5):
                 # Burst
                 tasks = [client.call("square", [i]) for i in range(20)]
@@ -324,7 +324,7 @@ class TestBurstTraffic:
     
     async def test_alternating_bursts_py(self, py_server: ServerProcess):
         """Alternating bursts and single calls."""
-        async with InteropClient(f"ws://localhost:{py_server.port}/rpc") as client:
+        async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
             for round_num in range(5):
                 # Burst
                 tasks = [client.call("square", [i]) for i in range(20)]
@@ -346,7 +346,7 @@ class TestMixedWorkload:
     
     async def test_mixed_call_types_ts(self, ts_server: ServerProcess):
         """Mix of different call types under load."""
-        async with InteropClient(f"ws://localhost:{ts_server.port}/") as client:
+        async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             tasks = []
             
             # Mix of different operations
@@ -365,7 +365,7 @@ class TestMixedWorkload:
     
     async def test_mixed_call_types_py(self, py_server: ServerProcess):
         """Mix of different call types under load."""
-        async with InteropClient(f"ws://localhost:{py_server.port}/rpc") as client:
+        async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
             tasks = []
             
             for i in range(50):
@@ -383,7 +383,7 @@ class TestMixedWorkload:
     
     async def test_errors_under_load_ts(self, ts_server: ServerProcess):
         """Some errors mixed with successful calls under load."""
-        async with InteropClient(f"ws://localhost:{ts_server.port}/") as client:
+        async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             tasks = []
             
             for i in range(30):
@@ -404,7 +404,7 @@ class TestMixedWorkload:
     
     async def test_errors_under_load_py(self, py_server: ServerProcess):
         """Some errors mixed with successful calls under load."""
-        async with InteropClient(f"ws://localhost:{py_server.port}/rpc") as client:
+        async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
             tasks = []
             
             for i in range(30):

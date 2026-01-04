@@ -91,7 +91,7 @@ class TestSimpleCallMemory:
     async def test_no_leak_simple_call_ts(self, ts_server: ServerProcess):
         """Simple call to TypeScript server doesn't leak."""
         # Warm up - first call may create cached objects
-        async with InteropClient(f"ws://localhost:{ts_server.port}/") as client:
+        async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             await client.call("square", [5])
         
         gc.collect()
@@ -99,7 +99,7 @@ class TestSimpleCallMemory:
         
         # Make several calls
         for _ in range(10):
-            async with InteropClient(f"ws://localhost:{ts_server.port}/") as client:
+            async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
                 await client.call("square", [5])
         
         gc.collect()
@@ -111,14 +111,14 @@ class TestSimpleCallMemory:
     async def test_no_leak_simple_call_py(self, py_server: ServerProcess):
         """Simple call to Python server doesn't leak."""
         # Warm up
-        async with InteropClient(f"ws://localhost:{py_server.port}/rpc") as client:
+        async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
             await client.call("square", [5])
         
         gc.collect()
         before = get_rpc_object_counts()
         
         for _ in range(10):
-            async with InteropClient(f"ws://localhost:{py_server.port}/rpc") as client:
+            async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
                 await client.call("square", [5])
         
         gc.collect()
@@ -128,7 +128,7 @@ class TestSimpleCallMemory:
     
     async def test_multiple_calls_same_session_ts(self, ts_server: ServerProcess):
         """Multiple calls in same session complete and session closes cleanly."""
-        async with InteropClient(f"ws://localhost:{ts_server.port}/") as client:
+        async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             for i in range(20):
                 result = await client.call("square", [i])
                 assert result == i * i
@@ -136,7 +136,7 @@ class TestSimpleCallMemory:
     
     async def test_multiple_calls_same_session_py(self, py_server: ServerProcess):
         """Multiple calls in same session complete and session closes cleanly."""
-        async with InteropClient(f"ws://localhost:{py_server.port}/rpc") as client:
+        async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
             for i in range(20):
                 result = await client.call("square", [i])
                 assert result == i * i
@@ -157,7 +157,7 @@ class TestCapabilityMemory:
         before = get_rpc_object_counts()
         
         for _ in range(5):
-            async with InteropClient(f"ws://localhost:{ts_server.port}/") as client:
+            async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
                 counter = await client.call("makeCounter", [0])
                 # Counter is a stub - should be cleaned up when session closes
                 assert counter is not None
@@ -173,7 +173,7 @@ class TestCapabilityMemory:
         before = get_rpc_object_counts()
         
         for _ in range(5):
-            async with InteropClient(f"ws://localhost:{py_server.port}/rpc") as client:
+            async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
                 counter = await client.call("makeCounter", [0])
                 assert counter is not None
         
@@ -184,7 +184,7 @@ class TestCapabilityMemory:
     
     async def test_stub_lifecycle_ts(self, ts_server: ServerProcess):
         """Stubs are created and session closes cleanly."""
-        async with InteropClient(f"ws://localhost:{ts_server.port}/") as client:
+        async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             counter = await client.call("makeCounter", [0])
             assert counter is not None
         # Session closed - stubs should be released
@@ -192,7 +192,7 @@ class TestCapabilityMemory:
     
     async def test_stub_lifecycle_py(self, py_server: ServerProcess):
         """Stubs are created and session closes cleanly."""
-        async with InteropClient(f"ws://localhost:{py_server.port}/rpc") as client:
+        async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
             counter = await client.call("makeCounter", [0])
             assert counter is not None
         gc.collect()
@@ -212,7 +212,7 @@ class TestErrorPathMemory:
         before = get_rpc_object_counts()
         
         for _ in range(5):
-            async with InteropClient(f"ws://localhost:{ts_server.port}/") as client:
+            async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
                 try:
                     await client.call("throwError", ["test error"])
                 except Exception:
@@ -229,7 +229,7 @@ class TestErrorPathMemory:
         before = get_rpc_object_counts()
         
         for _ in range(5):
-            async with InteropClient(f"ws://localhost:{py_server.port}/rpc") as client:
+            async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
                 try:
                     await client.call("throwError", ["test error"])
                 except Exception:
@@ -246,7 +246,7 @@ class TestErrorPathMemory:
         before = get_rpc_object_counts()
         
         for _ in range(5):
-            async with InteropClient(f"ws://localhost:{ts_server.port}/") as client:
+            async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
                 try:
                     await client.call("nonExistentMethod", [])
                 except Exception:
@@ -263,7 +263,7 @@ class TestErrorPathMemory:
         before = get_rpc_object_counts()
         
         for _ in range(5):
-            async with InteropClient(f"ws://localhost:{py_server.port}/rpc") as client:
+            async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
                 try:
                     await client.call("nonExistentMethod", [])
                 except Exception:
@@ -288,7 +288,7 @@ class TestConcurrentMemory:
         gc.collect()
         before = get_rpc_object_counts()
         
-        async with InteropClient(f"ws://localhost:{ts_server.port}/") as client:
+        async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             # Make 20 concurrent calls
             tasks = [client.call("square", [i]) for i in range(20)]
             results = await asyncio.gather(*tasks)
@@ -304,7 +304,7 @@ class TestConcurrentMemory:
         gc.collect()
         before = get_rpc_object_counts()
         
-        async with InteropClient(f"ws://localhost:{py_server.port}/rpc") as client:
+        async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
             tasks = [client.call("square", [i]) for i in range(20)]
             results = await asyncio.gather(*tasks)
             assert len(results) == 20
@@ -320,7 +320,7 @@ class TestConcurrentMemory:
         before = get_rpc_object_counts()
         
         for i in range(10):
-            async with InteropClient(f"ws://localhost:{ts_server.port}/") as client:
+            async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
                 await client.call("square", [i])
         
         gc.collect()
@@ -334,7 +334,7 @@ class TestConcurrentMemory:
         before = get_rpc_object_counts()
         
         for i in range(10):
-            async with InteropClient(f"ws://localhost:{py_server.port}/rpc") as client:
+            async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
                 await client.call("square", [i])
         
         gc.collect()

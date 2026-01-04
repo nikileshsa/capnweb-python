@@ -32,7 +32,7 @@ class TestCapabilityPassing:
     
     async def test_server_returns_capability_ts(self, ts_server: ServerProcess):
         """Server can return a capability (Counter) to client."""
-        async with InteropClient(f"ws://localhost:{ts_server.port}/") as client:
+        async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             # makeCounter returns a Counter capability
             counter = await client.call("makeCounter", [10])
             # The counter should be a stub we can use
@@ -40,7 +40,7 @@ class TestCapabilityPassing:
     
     async def test_server_returns_capability_py(self, py_server: ServerProcess):
         """Server can return a capability (Counter) to client."""
-        async with InteropClient(f"ws://localhost:{py_server.port}/rpc") as client:
+        async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
             counter = await client.call("makeCounter", [10])
             assert counter is not None
     
@@ -66,7 +66,7 @@ class TestCapabilityPassing:
         
         local = ClientCallback()
         async with WebSocketRpcClient(
-            f"ws://localhost:{ts_server.port}/",
+            f"ws://127.0.0.1:{ts_server.port}/",
             local_main=local,
         ) as client:
             assert client._session is not None
@@ -103,7 +103,7 @@ class TestCapabilityPassing:
         
         local = ClientCallback()
         async with WebSocketRpcClient(
-            f"ws://localhost:{py_server.port}/rpc",
+            f"ws://127.0.0.1:{py_server.port}/rpc",
             local_main=local,
         ) as client:
             assert client._session is not None
@@ -129,7 +129,7 @@ class TestReleaseMessages:
         """Release message is sent after capability is resolved."""
         from capnweb.ws_session import WebSocketRpcClient
         
-        async with WebSocketRpcClient(f"ws://localhost:{ts_server.port}/") as client:
+        async with WebSocketRpcClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             # Make a call that returns a capability
             counter = await client.call(0, "makeCounter", [10])
             
@@ -145,7 +145,7 @@ class TestReleaseMessages:
         """Release message is sent after capability is resolved."""
         from capnweb.ws_session import WebSocketRpcClient
         
-        async with WebSocketRpcClient(f"ws://localhost:{py_server.port}/rpc") as client:
+        async with WebSocketRpcClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
             counter = await client.call(0, "makeCounter", [10])
             session = client._session
             assert session is not None
@@ -161,7 +161,7 @@ class TestMultipleReferences:
     
     async def test_multiple_calls_same_capability_ts(self, ts_server: ServerProcess):
         """Multiple calls to the same capability work correctly."""
-        async with InteropClient(f"ws://localhost:{ts_server.port}/") as client:
+        async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             # Multiple calls to the main capability
             results = await asyncio.gather(
                 client.call("square", [1]),
@@ -172,7 +172,7 @@ class TestMultipleReferences:
     
     async def test_multiple_calls_same_capability_py(self, py_server: ServerProcess):
         """Multiple calls to the same capability work correctly."""
-        async with InteropClient(f"ws://localhost:{py_server.port}/rpc") as client:
+        async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
             results = await asyncio.gather(
                 client.call("square", [1]),
                 client.call("square", [2]),
@@ -193,7 +193,7 @@ class TestCapabilityCleanup:
         """Session cleanup releases all capabilities."""
         from capnweb.ws_session import WebSocketRpcClient
         
-        async with WebSocketRpcClient(f"ws://localhost:{ts_server.port}/") as client:
+        async with WebSocketRpcClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             # Make several calls
             await client.call(0, "square", [5])
             await client.call(0, "greet", ["World"])
@@ -214,7 +214,7 @@ class TestCapabilityCleanup:
         """Session cleanup releases all capabilities."""
         from capnweb.ws_session import WebSocketRpcClient
         
-        async with WebSocketRpcClient(f"ws://localhost:{py_server.port}/rpc") as client:
+        async with WebSocketRpcClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
             await client.call(0, "square", [5])
             await client.call(0, "greet", ["World"])
             await client.call(0, "generateFibonacci", [5])
@@ -254,7 +254,7 @@ class TestBidirectionalCapabilities:
         
         local = ClientCallback()
         async with WebSocketRpcClient(
-            f"ws://localhost:{ts_server.port}/",
+            f"ws://127.0.0.1:{ts_server.port}/",
             local_main=local,
         ) as client:
             callback_stub = RpcStub(client._session.get_export(0).dup())
@@ -288,7 +288,7 @@ class TestBidirectionalCapabilities:
         
         local = ClientCallback()
         async with WebSocketRpcClient(
-            f"ws://localhost:{py_server.port}/rpc",
+            f"ws://127.0.0.1:{py_server.port}/rpc",
             local_main=local,
         ) as client:
             callback_stub = RpcStub(client._session.get_export(0).dup())

@@ -32,49 +32,49 @@ class TestEmptyValues:
     
     async def test_empty_string_ts(self, ts_server: ServerProcess):
         """Empty string round-trips correctly."""
-        async with InteropClient(f"ws://localhost:{ts_server.port}/") as client:
+        async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             result = await client.call("echo", [""])
             assert result == ""
     
     async def test_empty_string_py(self, py_server: ServerProcess):
         """Empty string round-trips correctly."""
-        async with InteropClient(f"ws://localhost:{py_server.port}/rpc") as client:
+        async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
             result = await client.call("echo", [""])
             assert result == ""
     
     async def test_empty_array_ts(self, ts_server: ServerProcess):
         """Empty array round-trips correctly."""
-        async with InteropClient(f"ws://localhost:{ts_server.port}/") as client:
+        async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             result = await client.call("echo", [[]])
             assert result == []
     
     async def test_empty_array_py(self, py_server: ServerProcess):
         """Empty array round-trips correctly."""
-        async with InteropClient(f"ws://localhost:{py_server.port}/rpc") as client:
+        async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
             result = await client.call("echo", [[]])
             assert result == []
     
     async def test_empty_object_ts(self, ts_server: ServerProcess):
         """Empty object round-trips correctly."""
-        async with InteropClient(f"ws://localhost:{ts_server.port}/") as client:
+        async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             result = await client.call("echo", [{}])
             assert result == {}
     
     async def test_empty_object_py(self, py_server: ServerProcess):
         """Empty object round-trips correctly."""
-        async with InteropClient(f"ws://localhost:{py_server.port}/rpc") as client:
+        async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
             result = await client.call("echo", [{}])
             assert result == {}
     
     async def test_null_ts(self, ts_server: ServerProcess):
         """Null value round-trips correctly."""
-        async with InteropClient(f"ws://localhost:{ts_server.port}/") as client:
+        async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             result = await client.call("echo", [None])
             assert result is None
     
     async def test_null_py(self, py_server: ServerProcess):
         """Null value round-trips correctly."""
-        async with InteropClient(f"ws://localhost:{py_server.port}/rpc") as client:
+        async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
             result = await client.call("echo", [None])
             assert result is None
 
@@ -89,42 +89,42 @@ class TestLargePayloads:
     
     async def test_large_string_ts(self, ts_server: ServerProcess):
         """Large string (10KB) round-trips correctly."""
-        async with InteropClient(f"ws://localhost:{ts_server.port}/") as client:
+        async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             large_string = "x" * 10000
             result = await client.call("echo", [large_string])
             assert result == large_string
     
     async def test_large_string_py(self, py_server: ServerProcess):
         """Large string (10KB) round-trips correctly."""
-        async with InteropClient(f"ws://localhost:{py_server.port}/rpc") as client:
+        async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
             large_string = "x" * 10000
             result = await client.call("echo", [large_string])
             assert result == large_string
     
     async def test_large_array_ts(self, ts_server: ServerProcess):
         """Large array (1000 elements) round-trips correctly."""
-        async with InteropClient(f"ws://localhost:{ts_server.port}/") as client:
+        async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             large_array = list(range(1000))
             result = await client.call("echo", [large_array])
             assert result == large_array
     
     async def test_large_array_py(self, py_server: ServerProcess):
         """Large array (1000 elements) round-trips correctly."""
-        async with InteropClient(f"ws://localhost:{py_server.port}/rpc") as client:
+        async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
             large_array = list(range(1000))
             result = await client.call("echo", [large_array])
             assert result == large_array
     
     async def test_large_object_ts(self, ts_server: ServerProcess):
         """Large object (100 keys) round-trips correctly."""
-        async with InteropClient(f"ws://localhost:{ts_server.port}/") as client:
+        async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             large_object = {f"key_{i}": i for i in range(100)}
             result = await client.call("echo", [large_object])
             assert result == large_object
     
     async def test_large_object_py(self, py_server: ServerProcess):
         """Large object (100 keys) round-trips correctly."""
-        async with InteropClient(f"ws://localhost:{py_server.port}/rpc") as client:
+        async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
             large_object = {f"key_{i}": i for i in range(100)}
             result = await client.call("echo", [large_object])
             assert result == large_object
@@ -140,7 +140,7 @@ class TestDeeplyNested:
     
     async def test_deeply_nested_object_ts(self, ts_server: ServerProcess):
         """Deeply nested object (10 levels) round-trips correctly."""
-        async with InteropClient(f"ws://localhost:{ts_server.port}/") as client:
+        async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             # Build nested object
             obj: dict = {"value": "deep"}
             for i in range(10):
@@ -151,7 +151,7 @@ class TestDeeplyNested:
     
     async def test_deeply_nested_object_py(self, py_server: ServerProcess):
         """Deeply nested object (10 levels) round-trips correctly."""
-        async with InteropClient(f"ws://localhost:{py_server.port}/rpc") as client:
+        async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
             obj: dict = {"value": "deep"}
             for i in range(10):
                 obj = {f"level_{i}": obj}
@@ -161,7 +161,7 @@ class TestDeeplyNested:
     
     async def test_deeply_nested_array_ts(self, ts_server: ServerProcess):
         """Deeply nested array (10 levels) round-trips correctly."""
-        async with InteropClient(f"ws://localhost:{ts_server.port}/") as client:
+        async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             arr: list = ["deep"]
             for _ in range(10):
                 arr = [arr]
@@ -171,7 +171,7 @@ class TestDeeplyNested:
     
     async def test_deeply_nested_array_py(self, py_server: ServerProcess):
         """Deeply nested array (10 levels) round-trips correctly."""
-        async with InteropClient(f"ws://localhost:{py_server.port}/rpc") as client:
+        async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
             arr: list = ["deep"]
             for _ in range(10):
                 arr = [arr]
@@ -203,7 +203,7 @@ class TestSpecialCharacters:
     ])
     async def test_special_char_ts(self, ts_server: ServerProcess, char: str, name: str):
         """Special character round-trips correctly through TypeScript server."""
-        async with InteropClient(f"ws://localhost:{ts_server.port}/") as client:
+        async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             test_string = f"before{char}after"
             result = await client.call("echo", [test_string])
             assert result == test_string, f"Failed for {name}"
@@ -223,7 +223,7 @@ class TestSpecialCharacters:
     ])
     async def test_special_char_py(self, py_server: ServerProcess, char: str, name: str):
         """Special character round-trips correctly through Python server."""
-        async with InteropClient(f"ws://localhost:{py_server.port}/rpc") as client:
+        async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
             test_string = f"before{char}after"
             result = await client.call("echo", [test_string])
             assert result == test_string, f"Failed for {name}"
@@ -251,7 +251,7 @@ class TestUnicode:
     ])
     async def test_unicode_ts(self, ts_server: ServerProcess, text: str, name: str):
         """Unicode text round-trips correctly through TypeScript server."""
-        async with InteropClient(f"ws://localhost:{ts_server.port}/") as client:
+        async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             result = await client.call("echo", [text])
             assert result == text, f"Failed for {name}"
     
@@ -269,7 +269,7 @@ class TestUnicode:
     ])
     async def test_unicode_py(self, py_server: ServerProcess, text: str, name: str):
         """Unicode text round-trips correctly through Python server."""
-        async with InteropClient(f"ws://localhost:{py_server.port}/rpc") as client:
+        async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
             result = await client.call("echo", [text])
             assert result == text, f"Failed for {name}"
 
@@ -296,7 +296,7 @@ class TestNumericEdgeCases:
     ])
     async def test_numeric_ts(self, ts_server: ServerProcess, value, name: str):
         """Numeric value round-trips correctly through TypeScript server."""
-        async with InteropClient(f"ws://localhost:{ts_server.port}/") as client:
+        async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             result = await client.call("echo", [value])
             assert result == value, f"Failed for {name}"
     
@@ -314,7 +314,7 @@ class TestNumericEdgeCases:
     ])
     async def test_numeric_py(self, py_server: ServerProcess, value, name: str):
         """Numeric value round-trips correctly through Python server."""
-        async with InteropClient(f"ws://localhost:{py_server.port}/rpc") as client:
+        async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
             result = await client.call("echo", [value])
             assert result == value, f"Failed for {name}"
 
@@ -329,31 +329,31 @@ class TestBooleanEdgeCases:
     
     async def test_true_ts(self, ts_server: ServerProcess):
         """True value round-trips correctly."""
-        async with InteropClient(f"ws://localhost:{ts_server.port}/") as client:
+        async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             result = await client.call("echo", [True])
             assert result is True
     
     async def test_true_py(self, py_server: ServerProcess):
         """True value round-trips correctly."""
-        async with InteropClient(f"ws://localhost:{py_server.port}/rpc") as client:
+        async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
             result = await client.call("echo", [True])
             assert result is True
     
     async def test_false_ts(self, ts_server: ServerProcess):
         """False value round-trips correctly."""
-        async with InteropClient(f"ws://localhost:{ts_server.port}/") as client:
+        async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             result = await client.call("echo", [False])
             assert result is False
     
     async def test_false_py(self, py_server: ServerProcess):
         """False value round-trips correctly."""
-        async with InteropClient(f"ws://localhost:{py_server.port}/rpc") as client:
+        async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
             result = await client.call("echo", [False])
             assert result is False
     
     async def test_boolean_not_confused_with_int_ts(self, ts_server: ServerProcess):
         """Boolean values are not confused with integers."""
-        async with InteropClient(f"ws://localhost:{ts_server.port}/") as client:
+        async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             # In some languages, True == 1 and False == 0
             # Make sure we preserve the type
             result_true = await client.call("echo", [True])
@@ -368,7 +368,7 @@ class TestBooleanEdgeCases:
     
     async def test_boolean_not_confused_with_int_py(self, py_server: ServerProcess):
         """Boolean values are not confused with integers."""
-        async with InteropClient(f"ws://localhost:{py_server.port}/rpc") as client:
+        async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
             result_true = await client.call("echo", [True])
             result_one = await client.call("echo", [1])
             result_false = await client.call("echo", [False])
