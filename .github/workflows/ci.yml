@@ -40,12 +40,6 @@ jobs:
           files: ./coverage.xml
           fail_ci_if_error: false
 
-  # TODO: Interop tests disabled - hanging on TypeScript server tests in CI
-  # Run locally: cd tests/interop && npm install && uv run pytest tests/interop/ -v
-  # interop:
-  #   runs-on: ubuntu-latest
-  #   needs: test
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - name: Run interop tests
-  #       run: uv run pytest tests/interop/ -v --tb=short
+  # Long-running protocol compatibility test disabled in CI
+  # Run locally: uv run python tests/interop/test_long_running.py --duration 300 --server both
+  # See tests/interop/README.md for details
