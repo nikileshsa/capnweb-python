@@ -73,28 +73,36 @@ jobs:
           ls -la node_modules/.bin/tsx || echo "tsx not found"
           npx tsx --version
 
-      - name: Test TypeScript server startup
+      - name: Test server startup manually
         working-directory: tests/interop
         run: |
-          # Start server in background
+          # Start server and verify it binds to port
           npx tsx ts_server.ts 19999 &
-          PID=$!
-          sleep 3
-          # Check if server is running
-          if kill -0 $PID 2>/dev/null; then
-            echo "TypeScript server started successfully on port 19999"
-            kill $PID
+          SERVER_PID=$!
+          echo "Started server with PID $SERVER_PID"
+          sleep 5
+          
+          # Check if process is still running
+          if kill -0 $SERVER_PID 2>/dev/null; then
+            echo "Server process is running"
           else
-            echo "TypeScript server failed to start"
+            echo "Server process died"
             exit 1
           fi
+          
+          # Check if port is listening
+          if nc -z 127.0.0.1 19999; then
+            echo "Port 19999 is listening"
+          else
+            echo "Port 19999 is NOT listening"
+            # Check what ports are listening
+            ss -tlnp | grep node || echo "No node ports found"
+            exit 1
+          fi
+          
+          # Cleanup
+          kill $SERVER_PID 2>/dev/null || true
 
-      - name: Run single interop test first
-        timeout-minutes: 3
-        run: |
-          echo "=== Testing single interop test ==="
-          uv run pytest tests/interop/test_interop.py::TestPyClientTsServer::test_simple_square -v --tb=long -x
-
-      - name: Run all interop tests
-        timeout-minutes: 10
-        run: uv run pytest tests/interop/ -v --tb=short
+      - name: Run interop tests
+        timeout-minutes: 5
+        run: uv run pytest tests/interop/ -v --tb=short -x
