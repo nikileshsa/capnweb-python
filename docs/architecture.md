@@ -34,10 +34,10 @@ Cap'n Web Python is built around a **decentralized, hook-based architecture**. I
 │  │ ErrorStub    │  │ PayloadStub  │  │ TargetStub   │   │
 │  │ Hook         │  │ Hook         │  │ Hook         │   │
 │  └──────────────┘  └──────────────┘  └──────────────┘   │
-│  ┌──────────────┐  ┌──────────────┐                     │
-│  │ RpcImport    │  │ PromiseStub  │                     │
-│  │ Hook         │  │ Hook         │                     │
-│  └──────────────┘  └──────────────┘                     │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐   │
+│  │ ImportHook   │  │ PromiseStub  │  │ PipelineHook │   │
+│  │              │  │ Hook         │  │              │   │
+│  └──────────────┘  └──────────────┘  └──────────────┘   │
 └─────────────────────────────────────────────────────────┘
                             │
                             ▼
@@ -61,8 +61,17 @@ A **hook** is an object that knows how to handle RPC operations for a specific t
 ```python
 class StubHook(ABC):
     @abstractmethod
-    async def call(self, path: list[str | int], args: RpcPayload) -> StubHook:
-        """Call a method through this hook."""
+    def call(self, path: list[str | int], args: RpcPayload) -> StubHook:
+        """Call a method through this hook (synchronous).
+        
+        Synchronous to ensure messages are queued before batch
+        transports send their requests.
+        """
+
+    @abstractmethod
+    def map(self, path: list[str | int], captures: list[StubHook], 
+            instructions: list[Any]) -> StubHook:
+        """Apply a map operation over an array."""
 
     @abstractmethod
     def get(self, path: list[str | int]) -> StubHook:
@@ -134,7 +143,7 @@ result = await result_hook.pull()  # 8
 
 **Use case:** Server-side capabilities
 
-#### 4. **RpcImportHook** - References Remote Capabilities
+#### 4. **ImportHook** - References Remote Capabilities
 
 Represents a capability imported from a remote peer. Sends messages to the remote side when called.
 
@@ -143,12 +152,27 @@ Represents a capability imported from a remote peer. Sends messages to the remot
 hook = session.import_capability(import_id)
 
 # Calling it sends a message to the remote peer
-result_hook = await hook.call(["method"], args)
+result_hook = hook.call(["method"], args)  # Synchronous!
 ```
 
 **Use case:** Remote capability references
 
-#### 5. **PromiseStubHook** - Wraps Async Operations
+#### 5. **PipelineHook** - Pipelined Property Access
+
+Represents a pipelined property access on an unresolved import. Allows chaining calls without waiting for resolution.
+
+```python
+# Created when accessing properties on an ImportHook
+import_hook = session.import_capability(import_id)
+pipeline_hook = import_hook.get(["user", "profile"])
+
+# Can chain further operations
+result = pipeline_hook.call(["getName"], args)
+```
+
+**Use case:** Promise pipelining, reducing round-trips
+
+#### 6. **PromiseStubHook** - Wraps Async Operations
 
 Wraps a `Future` that will eventually resolve to another hook.
 
@@ -169,19 +193,20 @@ final_payload = await hook.pull()
 The `RpcSession` base class manages capability tables:
 
 ```python
-class RpcSession:
-    _imports: dict[int, StubHook]      # Remote capabilities we reference
-    _exports: dict[int, StubHook]      # Local capabilities we expose
-    _pending_promises: dict[int, asyncio.Future]  # Unresolved promises
+class BidirectionalSession:
+    _imports: dict[int, ImportEntry]   # Remote capabilities we reference
+    _exports: dict[int, ExportEntry]   # Local capabilities we expose
+    _reverse_exports: dict[int, int]   # O(1) capability lookup
+    _pull_count: int                   # Pending operations counter
 
-    def import_capability(self, import_id: int) -> StubHook:
-        """Create an RpcImportHook for a remote capability."""
+    def get_import(self, import_id: int) -> ImportHook:
+        """Get or create an ImportHook for a remote capability."""
 
-    def export_capability(self, stub: RpcStub | RpcPromise) -> int:
+    def push(self, hook: StubHook) -> int:
         """Export a local capability, return export ID."""
 
-    def register_target(self, export_id: int, target: RpcTarget):
-        """Register a local object as a capability."""
+    async def drain(self) -> None:
+        """Wait for all pending operations to complete."""
 ```
 
 Both `Client` and `Server` extend `RpcSession`.
