@@ -228,15 +228,19 @@ class TestTargetStubHookNavigation:
 
     @pytest.mark.asyncio
     async def test_call_without_path(self):
-        """Test calling target without method name returns error."""
+        """Test calling target without method name goes through RpcTarget.call with empty method."""
         target = SimpleTarget()
         hook = TargetStubHook(target)
         args = RpcPayload.owned([])
 
         result_hook = hook.call([], args)
 
-        assert isinstance(result_hook, ErrorStubHook)
-        assert "without method name" in result_hook.error.message
+        # Now returns PromiseStubHook since RpcTarget.call is async
+        assert isinstance(result_hook, PromiseStubHook)
+        resolved = await result_hook.future
+        # SimpleTarget.call raises RpcError.not_found for unknown methods (including empty)
+        assert isinstance(resolved, ErrorStubHook)
+        assert isinstance(resolved.error, RpcError)
 
     @pytest.mark.asyncio
     async def test_call_with_rpc_error(self):
