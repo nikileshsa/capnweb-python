@@ -36,14 +36,14 @@ PY_SERVER_BASE_PORT = 19200
 def find_free_port() -> int:
     """Find a free port on localhost."""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(("127.0.0.1", 0))
+        s.bind(("localhost", 0))
         return s.getsockname()[1]
 
 
 def is_port_in_use(port: int) -> bool:
     """Check if a port is in use."""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        return s.connect_ex(("127.0.0.1", port)) == 0
+        return s.connect_ex(("localhost", port)) == 0
 
 
 async def wait_for_port(port: int, timeout: float = 10.0) -> bool:
@@ -89,7 +89,7 @@ class ServerProcess:
         return self.process.poll() is None
     
     def get_output(self) -> tuple[str, str]:
-        """Get stdout and stderr (returns empty strings if DEVNULL was used)."""
+        """Get stdout and stderr (returns empty if DEVNULL was used)."""
         return "", ""
 
 
@@ -105,8 +105,8 @@ def start_ts_server(port: int | None = None) -> ServerProcess:
             "Run 'npm install' in tests/interop/ first"
         )
     
-    # Use DEVNULL to avoid blocking on full pipe buffers in CI
-    # The server output is not needed for tests
+    # Use DEVNULL to prevent pipe buffer deadlock in CI
+    # (subprocess blocks if pipe buffer fills up ~64KB)
     proc = subprocess.Popen(
         ["npx", "tsx", "./ts_server.ts", str(port)],
         cwd=INTEROP_DIR,
@@ -117,9 +117,7 @@ def start_ts_server(port: int | None = None) -> ServerProcess:
     if not wait_for_port_sync(port, timeout=15.0):
         proc.kill()
         proc.wait()
-        raise RuntimeError(
-            f"TypeScript server failed to start on port {port}"
-        )
+        raise RuntimeError(f"TypeScript server failed to start on port {port}")
     
     return ServerProcess(process=proc, port=port, name="TypeScript")
 
@@ -129,7 +127,7 @@ def start_py_server(port: int | None = None) -> ServerProcess:
     if port is None:
         port = find_free_port()
     
-    # Use DEVNULL to avoid blocking on full pipe buffers in CI
+    # Use DEVNULL to prevent pipe buffer deadlock in CI
     proc = subprocess.Popen(
         [sys.executable, "py_server.py", str(port)],
         cwd=INTEROP_DIR,
@@ -141,9 +139,7 @@ def start_py_server(port: int | None = None) -> ServerProcess:
     if not wait_for_port_sync(port, timeout=15.0):
         proc.kill()
         proc.wait()
-        raise RuntimeError(
-            f"Python server failed to start on port {port}"
-        )
+        raise RuntimeError(f"Python server failed to start on port {port}")
     
     return ServerProcess(process=proc, port=port, name="Python")
 
@@ -258,7 +254,7 @@ class InteropClient:
 def py_client_to_ts(ts_server: ServerProcess):
     """Create a Python client connected to TypeScript server."""
     async def _create():
-        client = InteropClient(f"ws://127.0.0.1:{ts_server.port}/")
+        client = InteropClient(f"ws://localhost:{ts_server.port}/")
         await client.__aenter__()
         return client
     return _create
@@ -268,7 +264,7 @@ def py_client_to_ts(ts_server: ServerProcess):
 def py_client_to_py(py_server: ServerProcess):
     """Create a Python client connected to Python server."""
     async def _create():
-        client = InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc")
+        client = InteropClient(f"ws://localhost:{py_server.port}/rpc")
         await client.__aenter__()
         return client
     return _create
