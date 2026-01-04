@@ -55,7 +55,7 @@ def is_port_in_use(port: int) -> bool:
     """Check if a port is in use."""
     import socket
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        return s.connect_ex(('localhost', port)) == 0
+        return s.connect_ex(('127.0.0.1', port)) == 0
 
 
 async def wait_for_port(port: int, timeout: float = 10.0) -> bool:
