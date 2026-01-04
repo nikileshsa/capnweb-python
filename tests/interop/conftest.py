@@ -89,10 +89,8 @@ class ServerProcess:
         return self.process.poll() is None
     
     def get_output(self) -> tuple[str, str]:
-        """Get stdout and stderr."""
-        stdout = self.process.stdout.read() if self.process.stdout else ""
-        stderr = self.process.stderr.read() if self.process.stderr else ""
-        return stdout, stderr
+        """Get stdout and stderr (returns empty strings if DEVNULL was used)."""
+        return "", ""
 
 
 def start_ts_server(port: int | None = None) -> ServerProcess:
@@ -107,20 +105,20 @@ def start_ts_server(port: int | None = None) -> ServerProcess:
             "Run 'npm install' in tests/interop/ first"
         )
     
+    # Use DEVNULL to avoid blocking on full pipe buffers in CI
+    # The server output is not needed for tests
     proc = subprocess.Popen(
         ["npx", "tsx", "./ts_server.ts", str(port)],
         cwd=INTEROP_DIR,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
     )
     
-    if not wait_for_port_sync(port, timeout=10.0):
+    if not wait_for_port_sync(port, timeout=15.0):
         proc.kill()
-        stdout, stderr = proc.communicate()
+        proc.wait()
         raise RuntimeError(
-            f"TypeScript server failed to start on port {port}:\n"
-            f"stdout: {stdout}\nstderr: {stderr}"
+            f"TypeScript server failed to start on port {port}"
         )
     
     return ServerProcess(process=proc, port=port, name="TypeScript")
@@ -131,21 +129,20 @@ def start_py_server(port: int | None = None) -> ServerProcess:
     if port is None:
         port = find_free_port()
     
+    # Use DEVNULL to avoid blocking on full pipe buffers in CI
     proc = subprocess.Popen(
         [sys.executable, "py_server.py", str(port)],
         cwd=INTEROP_DIR,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
         env={**os.environ, "PYTHONPATH": str(SRC_DIR)},
     )
     
-    if not wait_for_port_sync(port, timeout=10.0):
+    if not wait_for_port_sync(port, timeout=15.0):
         proc.kill()
-        stdout, stderr = proc.communicate()
+        proc.wait()
         raise RuntimeError(
-            f"Python server failed to start on port {port}:\n"
-            f"stdout: {stdout}\nstderr: {stderr}"
+            f"Python server failed to start on port {port}"
         )
     
     return ServerProcess(process=proc, port=port, name="Python")
