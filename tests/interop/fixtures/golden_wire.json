@@ -1,0 +1,614 @@
+{
+  "generator": "packages/capnweb/tests/interop/gen_golden_fixtures.ts",
+  "reference": "cloudflare/capnweb (TypeScript) — standalone serialize()/deserialize()",
+  "capnweb_version": "0.9.0",
+  "generated_at": "2026-07-04T05:12:34.207Z",
+  "entry_count": 69,
+  "entries": [
+    {
+      "name": "null",
+      "category": "primitives",
+      "input_description": "null",
+      "wire": "null",
+      "expect": "roundtrip",
+      "notes": "",
+      "reencoded_wire": "null"
+    },
+    {
+      "name": "true",
+      "category": "primitives",
+      "input_description": "true",
+      "wire": "true",
+      "expect": "roundtrip",
+      "notes": "",
+      "reencoded_wire": "true"
+    },
+    {
+      "name": "false",
+      "category": "primitives",
+      "input_description": "false",
+      "wire": "false",
+      "expect": "roundtrip",
+      "notes": "",
+      "reencoded_wire": "false"
+    },
+    {
+      "name": "int_zero",
+      "category": "numbers",
+      "input_description": "0",
+      "wire": "0",
+      "expect": "roundtrip",
+      "notes": "",
+      "reencoded_wire": "0"
+    },
+    {
+      "name": "int_positive",
+      "category": "numbers",
+      "input_description": "42",
+      "wire": "42",
+      "expect": "roundtrip",
+      "notes": "",
+      "reencoded_wire": "42"
+    },
+    {
+      "name": "int_negative",
+      "category": "numbers",
+      "input_description": "-7",
+      "wire": "-7",
+      "expect": "roundtrip",
+      "notes": "",
+      "reencoded_wire": "-7"
+    },
+    {
+      "name": "float_pi",
+      "category": "numbers",
+      "input_description": "3.14",
+      "wire": "3.14",
+      "expect": "roundtrip",
+      "notes": "",
+      "reencoded_wire": "3.14"
+    },
+    {
+      "name": "float_negative",
+      "category": "numbers",
+      "input_description": "-2.718",
+      "wire": "-2.718",
+      "expect": "roundtrip",
+      "notes": "",
+      "reencoded_wire": "-2.718"
+    },
+    {
+      "name": "int_max_safe",
+      "category": "numbers",
+      "input_description": "Number.MAX_SAFE_INTEGER (2^53-1)",
+      "wire": "9007199254740991",
+      "expect": "roundtrip",
+      "notes": "",
+      "reencoded_wire": "9007199254740991"
+    },
+    {
+      "name": "int_min_safe",
+      "category": "numbers",
+      "input_description": "Number.MIN_SAFE_INTEGER (-(2^53-1))",
+      "wire": "-9007199254740991",
+      "expect": "roundtrip",
+      "notes": "",
+      "reencoded_wire": "-9007199254740991"
+    },
+    {
+      "name": "int_2pow53_as_number",
+      "category": "numbers",
+      "input_description": "2**53 as a JS number (just past the safe range)",
+      "wire": "9007199254740992",
+      "expect": "roundtrip",
+      "notes": "TS emits a raw JSON number; Python policy (matrix 02 row 8) auto-promotes |int|>2^53 to [\"bigint\",...] on emit — byte parity is NOT expected here, semantic parity is.",
+      "reencoded_wire": "9007199254740992"
+    },
+    {
+      "name": "int_neg_2pow53_as_number",
+      "category": "numbers",
+      "input_description": "-(2**53) as a JS number",
+      "wire": "-9007199254740992",
+      "expect": "roundtrip",
+      "notes": "Same bigint auto-promotion caveat as int_2pow53_as_number.",
+      "reencoded_wire": "-9007199254740992"
+    },
+    {
+      "name": "sentinel_inf",
+      "category": "numbers",
+      "input_description": "Infinity",
+      "wire": "[\"inf\"]",
+      "expect": "roundtrip",
+      "notes": "",
+      "reencoded_wire": "[\"inf\"]"
+    },
+    {
+      "name": "sentinel_neg_inf",
+      "category": "numbers",
+      "input_description": "-Infinity",
+      "wire": "[\"-inf\"]",
+      "expect": "roundtrip",
+      "notes": "",
+      "reencoded_wire": "[\"-inf\"]"
+    },
+    {
+      "name": "sentinel_nan",
+      "category": "numbers",
+      "input_description": "NaN",
+      "wire": "[\"nan\"]",
+      "expect": "roundtrip",
+      "notes": "",
+      "reencoded_wire": "[\"nan\"]"
+    },
+    {
+      "name": "string_empty",
+      "category": "strings",
+      "input_description": "empty string",
+      "wire": "\"\"",
+      "expect": "roundtrip",
+      "notes": "",
+      "reencoded_wire": "\"\""
+    },
+    {
+      "name": "string_ascii",
+      "category": "strings",
+      "input_description": "'hello'",
+      "wire": "\"hello\"",
+      "expect": "roundtrip",
+      "notes": "",
+      "reencoded_wire": "\"hello\""
+    },
+    {
+      "name": "string_unicode",
+      "category": "strings",
+      "input_description": "unicode + emoji",
+      "wire": "\"Hello, 世界! 🌍\"",
+      "expect": "roundtrip",
+      "notes": "",
+      "reencoded_wire": "\"Hello, 世界! 🌍\""
+    },
+    {
+      "name": "string_escapes",
+      "category": "strings",
+      "input_description": "quotes/backslash/newline/tab control chars",
+      "wire": "\"\\\"quoted\\\" 'single' back\\\\slash\\nnewline\\ttab\"",
+      "expect": "roundtrip",
+      "notes": "",
+      "reencoded_wire": "\"\\\"quoted\\\" 'single' back\\\\slash\\nnewline\\ttab\""
+    },
+    {
+      "name": "object_empty",
+      "category": "objects",
+      "input_description": "{}",
+      "wire": "{}",
+      "expect": "roundtrip",
+      "notes": "",
+      "reencoded_wire": "{}"
+    },
+    {
+      "name": "object_simple",
+      "category": "objects",
+      "input_description": "{key: 'value'}",
+      "wire": "{\"key\":\"value\"}",
+      "expect": "roundtrip",
+      "notes": "",
+      "reencoded_wire": "{\"key\":\"value\"}"
+    },
+    {
+      "name": "object_nested",
+      "category": "objects",
+      "input_description": "3-level nested object with mixed values",
+      "wire": "{\"a\":{\"b\":{\"c\":[[1,\"two\",3]],\"d\":null},\"e\":true}}",
+      "expect": "roundtrip",
+      "notes": "",
+      "reencoded_wire": "{\"a\":{\"b\":{\"c\":[[1,\"two\",3]],\"d\":null},\"e\":true}}"
+    },
+    {
+      "name": "object_with_undefined_prop",
+      "category": "objects",
+      "input_description": "{a: undefined, b: 1}",
+      "wire": "{\"a\":[\"undefined\"],\"b\":1}",
+      "expect": "roundtrip",
+      "notes": "Records how TS encodes an own-property whose value is undefined.",
+      "reencoded_wire": "{\"a\":[\"undefined\"],\"b\":1}"
+    },
+    {
+      "name": "array_empty",
+      "category": "arrays",
+      "input_description": "[] (empty literal array)",
+      "wire": "[[]]",
+      "expect": "roundtrip",
+      "notes": "",
+      "reencoded_wire": "[[]]"
+    },
+    {
+      "name": "array_flat",
+      "category": "arrays",
+      "input_description": "[1, 2, 3]",
+      "wire": "[[1,2,3]]",
+      "expect": "roundtrip",
+      "notes": "",
+      "reencoded_wire": "[[1,2,3]]"
+    },
+    {
+      "name": "array_nested_depth3",
+      "category": "arrays",
+      "input_description": "[1, [2, [3, 'deep']]] — literal arrays nested to depth 3",
+      "wire": "[[1,[[2,[[3,\"deep\"]]]]]]",
+      "expect": "roundtrip",
+      "notes": "",
+      "reencoded_wire": "[[1,[[2,[[3,\"deep\"]]]]]]"
+    },
+    {
+      "name": "array_of_objects",
+      "category": "arrays",
+      "input_description": "[{a:1}, {b:[2,3]}]",
+      "wire": "[[{\"a\":1},{\"b\":[[2,3]]}]]",
+      "expect": "roundtrip",
+      "notes": "",
+      "reencoded_wire": "[[{\"a\":1},{\"b\":[[2,3]]}]]"
+    },
+    {
+      "name": "array_stringlike_tag_shape",
+      "category": "arrays",
+      "input_description": "['bigint', '123'] as a LITERAL application array (must be escaped on wire)",
+      "wire": "[[\"bigint\",\"123\"]]",
+      "expect": "roundtrip",
+      "notes": "Escaping is what stops application data from being read as a special form.",
+      "reencoded_wire": "[[\"bigint\",\"123\"]]"
+    },
+    {
+      "name": "array_nest_depth63",
+      "category": "depth",
+      "input_description": "42 wrapped in 63 nested arrays",
+      "wire": "[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[42]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]",
+      "expect": "roundtrip",
+      "notes": "",
+      "reencoded_wire": "[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[42]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]"
+    },
+    {
+      "name": "array_nest_depth64",
+      "category": "depth",
+      "input_description": "42 wrapped in 64 nested arrays",
+      "wire": "",
+      "expect": "encode_error",
+      "notes": "[TS serialize() threw: Error: Serialization exceeded maximum allowed depth. (Does the message contain cycles?)]"
+    },
+    {
+      "name": "array_nest_depth65",
+      "category": "depth",
+      "input_description": "42 wrapped in 65 nested arrays",
+      "wire": "",
+      "expect": "encode_error",
+      "notes": "[TS serialize() threw: Error: Serialization exceeded maximum allowed depth. (Does the message contain cycles?)]"
+    },
+    {
+      "name": "undefined",
+      "category": "sentinels",
+      "input_description": "undefined",
+      "wire": "[\"undefined\"]",
+      "expect": "roundtrip",
+      "notes": "",
+      "reencoded_wire": "[\"undefined\"]"
+    },
+    {
+      "name": "bigint_huge",
+      "category": "bigint",
+      "input_description": "123456789012345678901234567890n",
+      "wire": "[\"bigint\",\"123456789012345678901234567890\"]",
+      "expect": "roundtrip",
+      "notes": "",
+      "reencoded_wire": "[\"bigint\",\"123456789012345678901234567890\"]"
+    },
+    {
+      "name": "bigint_negative",
+      "category": "bigint",
+      "input_description": "-42n",
+      "wire": "[\"bigint\",\"-42\"]",
+      "expect": "roundtrip",
+      "notes": "",
+      "reencoded_wire": "[\"bigint\",\"-42\"]"
+    },
+    {
+      "name": "bigint_2pow53",
+      "category": "bigint",
+      "input_description": "BigInt(2**53)",
+      "wire": "[\"bigint\",\"9007199254740992\"]",
+      "expect": "roundtrip",
+      "notes": "",
+      "reencoded_wire": "[\"bigint\",\"9007199254740992\"]"
+    },
+    {
+      "name": "date_valid",
+      "category": "dates",
+      "input_description": "new Date(1720000000000)",
+      "wire": "[\"date\",1720000000000]",
+      "expect": "roundtrip",
+      "notes": "",
+      "reencoded_wire": "[\"date\",1720000000000]"
+    },
+    {
+      "name": "date_invalid",
+      "category": "dates",
+      "input_description": "new Date(NaN) — invalid date",
+      "wire": "[\"date\",null]",
+      "expect": "roundtrip",
+      "notes": "PR #152 (v0.8.0): invalid date encodes as [\"date\", null]. Matrix 02 row 9.",
+      "reencoded_wire": "[\"date\",null]"
+    },
+    {
+      "name": "date_null_decode",
+      "category": "dates",
+      "input_description": "hand-crafted [\"date\", null] wire",
+      "wire": "[\"date\",null]",
+      "expect": "roundtrip",
+      "notes": "Decode direction of the invalid-date form. Matrix 02 row 9. [TS deserialize() accepted; decoded typeof=object]",
+      "reencoded_wire": "[\"date\",null]"
+    },
+    {
+      "name": "bytes_hello",
+      "category": "bytes",
+      "input_description": "Uint8Array of 'hello' (5 bytes)",
+      "wire": "[\"bytes\",\"aGVsbG8\"]",
+      "expect": "roundtrip",
+      "notes": "",
+      "reencoded_wire": "[\"bytes\",\"aGVsbG8\"]"
+    },
+    {
+      "name": "bytes_empty",
+      "category": "bytes",
+      "input_description": "Uint8Array of 0 bytes",
+      "wire": "[\"bytes\",\"\"]",
+      "expect": "roundtrip",
+      "notes": "",
+      "reencoded_wire": "[\"bytes\",\"\"]"
+    },
+    {
+      "name": "bytes_255",
+      "category": "bytes",
+      "input_description": "Uint8Array of 255 bytes, values 0..254",
+      "wire": "[\"bytes\",\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+\"]",
+      "expect": "roundtrip",
+      "notes": "",
+      "reencoded_wire": "[\"bytes\",\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+\"]"
+    },
+    {
+      "name": "bytes_padded_b64_decode",
+      "category": "bytes",
+      "input_description": "hand-crafted [\"bytes\",\"aGVsbG8=\"] (PADDED base64)",
+      "wire": "[\"bytes\",\"aGVsbG8=\"]",
+      "expect": "roundtrip",
+      "notes": "TS decoders tolerate padding even though TS emits unpadded (matrix 02 row 10). [TS deserialize() accepted; decoded typeof=object]",
+      "reencoded_wire": "[\"bytes\",\"aGVsbG8\"]"
+    },
+    {
+      "name": "error_plain",
+      "category": "errors",
+      "input_description": "new Error('boom')",
+      "wire": "[\"error\",\"Error\",\"boom\"]",
+      "expect": "roundtrip",
+      "notes": "",
+      "reencoded_wire": "[\"error\",\"Error\",\"boom\"]"
+    },
+    {
+      "name": "error_typeerror",
+      "category": "errors",
+      "input_description": "new TypeError('bad type')",
+      "wire": "[\"error\",\"TypeError\",\"bad type\"]",
+      "expect": "roundtrip",
+      "notes": "",
+      "reencoded_wire": "[\"error\",\"TypeError\",\"bad type\"]"
+    },
+    {
+      "name": "error_custom_props",
+      "category": "errors",
+      "input_description": "Error('boom') with own props {customProp: {k: 1}, count: 2}",
+      "wire": "[\"error\",\"Error\",\"boom\",null,{\"customProp\":{\"k\":1},\"count\":2}]",
+      "expect": "roundtrip",
+      "notes": "PR #166 (v0.8.0) 5-element form: stack slot normalized to null when props present. Matrix 02 row 16.",
+      "reencoded_wire": "[\"error\",\"Error\",\"boom\",null,{\"customProp\":{\"k\":1},\"count\":2}]"
+    },
+    {
+      "name": "error_with_cause",
+      "category": "errors",
+      "input_description": "new Error('outer', {cause: new TypeError('inner')})",
+      "wire": "[\"error\",\"Error\",\"outer\",null,{\"cause\":[\"error\",\"TypeError\",\"inner\"]}]",
+      "expect": "roundtrip",
+      "notes": "cause is captured even though non-enumerable. Matrix 02 row 16.",
+      "reencoded_wire": "[\"error\",\"Error\",\"outer\",null,{\"cause\":[\"error\",\"TypeError\",\"inner\"]}]"
+    },
+    {
+      "name": "error_aggregate",
+      "category": "errors",
+      "input_description": "new AggregateError([Error('e1'), TypeError('e2')], 'many')",
+      "wire": "[\"error\",\"AggregateError\",\"many\",null,{\"errors\":[[[\"error\",\"Error\",\"e1\"],[\"error\",\"TypeError\",\"e2\"]]]}]",
+      "expect": "roundtrip",
+      "notes": "AggregateError.errors captured recursively. Matrix 02 row 16 / D4.",
+      "reencoded_wire": "[\"error\",\"AggregateError\",\"many\",null,{\"errors\":[[[\"error\",\"Error\",\"e1\"],[\"error\",\"TypeError\",\"e2\"]]]}]"
+    },
+    {
+      "name": "error_3elem_decode",
+      "category": "errors",
+      "input_description": "hand-crafted legacy 3-element error",
+      "wire": "[\"error\",\"RangeError\",\"out of range\"]",
+      "expect": "roundtrip",
+      "notes": "Legacy 3-form. Name must survive decode (matrix 02 row 15). [TS deserialize() accepted; decoded typeof=object]",
+      "reencoded_wire": "[\"error\",\"RangeError\",\"out of range\"]"
+    },
+    {
+      "name": "error_4elem_stack_decode",
+      "category": "errors",
+      "input_description": "hand-crafted 4-element error with a stack string",
+      "wire": "[\"error\",\"Error\",\"with stack\",\"Error: with stack\\n    at <anonymous>:1:1\"]",
+      "expect": "roundtrip",
+      "notes": "4-form with stack. [TS deserialize() accepted; decoded typeof=object]",
+      "reencoded_wire": "[\"error\",\"Error\",\"with stack\"]"
+    },
+    {
+      "name": "error_unknown_name_decode",
+      "category": "errors",
+      "input_description": "hand-crafted error with a non-allowlisted name",
+      "wire": "[\"error\",\"SomeCustomError\",\"custom\"]",
+      "expect": "roundtrip",
+      "notes": "TS revives non-ERROR_TYPES names as plain Error but PRESERVES .name — check reencode. [TS deserialize() accepted; decoded typeof=object]",
+      "reencoded_wire": "[\"error\",\"Error\",\"custom\"]"
+    },
+    {
+      "name": "headers_multi_mixed_case",
+      "category": "http",
+      "input_description": "new Headers([['X-Multi','a'],['X-multi','b'],['Content-Type','text/plain']])",
+      "wire": "[\"headers\",[[\"content-type\",\"text/plain\"],[\"x-multi\",\"a, b\"]]]",
+      "expect": "roundtrip",
+      "notes": "Multi-value + mixed-case keys; records TS's canonical case/merge behavior. Matrix 02 row 12.",
+      "reencoded_wire": "[\"headers\",[[\"content-type\",\"text/plain\"],[\"x-multi\",\"a, b\"]]]"
+    },
+    {
+      "name": "request_get_default",
+      "category": "http",
+      "input_description": "new Request('https://example.com/') — default GET, no body",
+      "wire": "[\"request\",\"https://example.com/\",{}]",
+      "expect": "roundtrip",
+      "notes": "Only non-default init fields are emitted (matrix 02 row 13).",
+      "reencoded_wire": "[\"request\",\"https://example.com/\",{}]"
+    },
+    {
+      "name": "request_post_body_headers",
+      "category": "http",
+      "input_description": "new Request POST with string body 'hello body' and headers {X-Custom: 1, Content-Type: text/plain}",
+      "wire": "",
+      "expect": "encode_error",
+      "notes": "If the platform exposes the body only as a stream, standalone serialize() may throw (pipes need a session) — actual behavior recorded by expect/notes. [TS serialize() threw: Error: Can't serialize ReadableStream in this context.]"
+    },
+    {
+      "name": "request_post_string_body_decode",
+      "category": "http",
+      "input_description": "hand-crafted request wire with a plain-string body",
+      "wire": "[\"request\",\"https://example.com/api\",{\"method\":\"POST\",\"headers\":[[\"content-type\",\"text/plain\"],[\"x-custom\",\"1\"]],\"body\":\"hello body\"}]",
+      "expect": "roundtrip",
+      "notes": "Decode-direction coverage of a string body (body whitelist: null|string|bytes|stream). [TS deserialize() accepted; decoded typeof=object] [TS re-encode of decoded value threw: Error: Can't serialize ReadableStream in this context.; no canonical re-encode]"
+    },
+    {
+      "name": "response_200_default",
+      "category": "http",
+      "input_description": "new Response(null) — 200, no body",
+      "wire": "[\"response\",null,{}]",
+      "expect": "roundtrip",
+      "notes": "",
+      "reencoded_wire": "[\"response\",null,{}]"
+    },
+    {
+      "name": "response_404_statustext",
+      "category": "http",
+      "input_description": "new Response(null, {status: 404, statusText: 'Not Found'})",
+      "wire": "[\"response\",null,{\"status\":404,\"statusText\":\"Not Found\"}]",
+      "expect": "roundtrip",
+      "notes": "",
+      "reencoded_wire": "[\"response\",null,{\"status\":404,\"statusText\":\"Not Found\"}]"
+    },
+    {
+      "name": "function_encode",
+      "category": "unsupported",
+      "input_description": "() => 1 (a function)",
+      "wire": "",
+      "expect": "encode_error",
+      "notes": "[TS serialize() threw: Error: Can't serialize RPC stubs in this context.]"
+    },
+    {
+      "name": "symbol_encode",
+      "category": "unsupported",
+      "input_description": "Symbol('x')",
+      "wire": "",
+      "expect": "encode_error",
+      "notes": "[TS serialize() threw: TypeError: Cannot serialize value: (couldn't stringify value)]"
+    },
+    {
+      "name": "class_instance_encode",
+      "category": "unsupported",
+      "input_description": "instance of a plain custom class (class Foo { x = 1 })",
+      "wire": "",
+      "expect": "encode_error",
+      "notes": "typeForRpc matches exact prototypes; custom classes are unsupported (matrix 02 row 5). [TS serialize() threw: TypeError: Cannot serialize value: [object Object]]"
+    },
+    {
+      "name": "map_object_encode",
+      "category": "unsupported",
+      "input_description": "new Map([['a',1]])",
+      "wire": "",
+      "expect": "encode_error",
+      "notes": "[TS serialize() threw: TypeError: Cannot serialize value: [object Map]]"
+    },
+    {
+      "name": "bare_empty_array",
+      "category": "malformed",
+      "input_description": "bare [] (unescaped empty array)",
+      "wire": "[]",
+      "expect": "decode_error",
+      "notes": "Matrix 02 row 3: neither an escaped array nor a recognized tag. [TS deserialize() threw: TypeError: unknown special value: []]"
+    },
+    {
+      "name": "bare_number_array",
+      "category": "malformed",
+      "input_description": "bare [1,2] (unescaped array)",
+      "wire": "[1,2]",
+      "expect": "decode_error",
+      "notes": "Matrix 02 row 3. [TS deserialize() threw: TypeError: unknown special value: [1,2]]"
+    },
+    {
+      "name": "unknown_tag",
+      "category": "malformed",
+      "input_description": "unknown tag [\"zzz\", 1]",
+      "wire": "[\"zzz\",1]",
+      "expect": "decode_error",
+      "notes": "Matrix 02 row 3: unknown tags must be a hard error, not a plain list. [TS deserialize() threw: TypeError: unknown special value: [\"zzz\",1]]"
+    },
+    {
+      "name": "date_bad_arg",
+      "category": "malformed",
+      "input_description": "[\"date\", \"x\"] (non-numeric date payload)",
+      "wire": "[\"date\",\"x\"]",
+      "expect": "decode_error",
+      "notes": "Matrix 02 rows 3/9. [TS deserialize() threw: TypeError: unknown special value: [\"date\",\"x\"]]"
+    },
+    {
+      "name": "error_bad_name_type",
+      "category": "malformed",
+      "input_description": "[\"error\", 123, \"m\"] (numeric name)",
+      "wire": "[\"error\",123,\"m\"]",
+      "expect": "decode_error",
+      "notes": "Matrix 02 rows 3/16. [TS deserialize() threw: TypeError: unknown special value: [\"error\",123,\"m\"]]"
+    },
+    {
+      "name": "bigint_bad_payload",
+      "category": "malformed",
+      "input_description": "[\"bigint\", \"not-a-number\"]",
+      "wire": "[\"bigint\",\"not-a-number\"]",
+      "expect": "decode_error",
+      "notes": "BigInt(str) must reject non-numeric strings. [TS deserialize() threw: SyntaxError: Cannot convert not-a-number to a BigInt]"
+    },
+    {
+      "name": "pollution_plain_values",
+      "category": "security",
+      "input_description": "object with keys __proto__, toJSON, constructor mapped to plain values, plus a safe key",
+      "wire": "{\"__proto__\":1,\"toJSON\":2,\"constructor\":3,\"safe\":4}",
+      "expect": "roundtrip",
+      "notes": "TS drops keys in Object.prototype plus toJSON but still evaluates their values (serialize.ts:1003-1023). Matrix 02 row 23. reencoded_wire records what survives. [TS deserialize() accepted; decoded typeof=object]",
+      "reencoded_wire": "{\"safe\":4}"
+    },
+    {
+      "name": "pollution_key_with_export",
+      "category": "security",
+      "input_description": "{\"__proto__\": [\"export\", 0]} — dangerous key whose value embeds a capability",
+      "wire": "{\"__proto__\":[\"export\",0]}",
+      "expect": "decode_error",
+      "notes": "TS drops the key but STILL evaluates the value; with the standalone NullImporter that import throws, so the reference classifies this as decode_error here. In a live session the stub would be imported then released. Matrix 02 row 23. [TS deserialize() threw: Error: Cannot deserialize RPC stubs without an RPC session.]"
+    },
+    {
+      "name": "export_without_session",
+      "category": "security",
+      "input_description": "[\"export\", 0] with no session",
+      "wire": "[\"export\",0]",
+      "expect": "decode_error",
+      "notes": "Standalone deserialize() must not fabricate stubs (NullImporter throws). Session-path Python behavior differs; this pins the STANDALONE contract only. [TS deserialize() threw: Error: Cannot deserialize RPC stubs without an RPC session.]"
+    }
+  ]
+}

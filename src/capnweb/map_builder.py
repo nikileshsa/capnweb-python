@@ -1,139 +1,154 @@
-"""MapBuilder for constructing complex map operations.
+"""MapBuilder — the client-side .map() recorder (port of map.ts:8-233).
 
-This module implements the TypeScript MapBuilder pattern for building
-map instructions that can be sent to the server for remote execution.
+``send_map(hook, path, func)`` runs the user's mapper callback exactly once,
+synchronously, against a recording placeholder promise. Every RPC call the
+callback makes is intercepted (via ``stubs.with_call_interceptor``, the
+Python ``doCall`` swap of core.ts:326-341) and compiled into a wire
+instruction; the callback's return value is devaluated with the builder as
+the Exporter, so references to placeholders and captured stubs become
+``["pipeline", idx, path?]`` / ``["import", idx]`` forms in the mapper's own
+index space:
 
-The MapBuilder intercepts calls made within a map callback and converts
-them into a series of instructions that can be serialized and sent to
-the server. The server then executes these instructions using MapApplicator.
+    negative n -> captures[-n-1],  0 -> map input,  positive n -> result of
+    instructions[n-1];  the last instruction is the mapper's return value.
 
 Example:
     ```python
-    # Client-side: Build map instructions
-    result = await stub.items.map(lambda x: x.process().get_value())
-    
-    # This generates instructions like:
-    # [
-    #   ["pipeline", 0, ["process"]],      # Call process() on input
-    #   ["pipeline", 1, ["get_value"]],    # Call get_value() on result
-    #   ["import", 2]                       # Return the final result
-    # ]
+    result = await stub.getData().map(lambda x: x.process(counter.dup()))
+    # records: [["pipeline", 0, ["process"], [["import", -1]]],
+    #           ["pipeline", 1]]
     ```
 """
 
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass, field
-from typing import Any, Callable, Protocol
+import inspect
+from typing import Any, Callable
 
 from capnweb.error import RpcError
-from capnweb.hooks import PayloadStubHook, StubHook
+from capnweb.hooks import StubHook
 from capnweb.payload import RpcPayload
-
 
 # Type alias for map instructions
 MapInstruction = list[Any]
 
 
-class Exporter(Protocol):
-    """Protocol for exporting capabilities during map building."""
-    
-    def export_capability(self, stub: Any) -> int:
-        """Export a capability and return its ID."""
-        ...
-    
-    def get_import(self, hook: StubHook) -> int | None:
-        """Get the import ID for a hook if it's already captured."""
-        ...
+# The currently-recording builder (TS module global `currentMapBuilder`,
+# map.ts:8). Recording is strictly synchronous — mapper callbacks cannot
+# await — so a module global matches TS semantics; the call interceptor
+# itself is contextvar-scoped in stubs.py.
+_current_map_builder: "MapBuilder | None" = None
 
 
-# Global current map builder for intercepting calls
-_current_map_builder: MapBuilder | None = None
+_PLACEHOLDER_USE_ERROR = (
+    "Attempted to use an abstract placeholder from a mapper function. "
+    "Please make sure your map function has no side effects."
+)
 
 
-@dataclass
-class MapContext:
-    """Context for map building - tracks captures and subject."""
-    parent: MapBuilder | None
-    captures: list[StubHook | int]  # StubHook for root, int for nested
-    subject: StubHook | int  # StubHook for root, int for nested
-    path: list[str | int]
+def _placeholder_use_error() -> RpcError:
+    """The TS throwMapperBuilderUseError (map.ts:181-185)."""
+    return RpcError("Error", _PLACEHOLDER_USE_ERROR)
+
+
+def _reject_new_targets(value: Any) -> None:
+    """Reject RAW RpcTargets/callables in recorder values (row 8 scoping).
+
+    TS's Devaluator sees raw targets and routes them to
+    ``MapBuilder.exportStub`` which throws (map.ts:120-136). Python wraps
+    raw targets into stubs during payload deep copy — BEFORE the serializer
+    could tell them apart from legitimately captured stubs — so the recorder
+    walks the raw value first. Pre-existing ``RpcStub``/``RpcPromise``
+    instances are fine (they become captures via ``get_import``).
+    """
+    from capnweb.stubs import RpcPromise, RpcStub
+    from capnweb.types import RpcTarget
+
+    if isinstance(value, (RpcStub, RpcPromise)) or value is None:
+        return
+    if isinstance(value, RpcTarget) or (
+        callable(value) and not isinstance(value, type)
+    ):
+        raise RpcError(
+            "Error",
+            "Can't construct an RpcTarget or RPC callback inside a mapper "
+            "function. Try creating a new RpcStub outside the callback "
+            "first, then using it inside the callback.",
+        )
+    if isinstance(value, (list, tuple)):
+        for item in value:
+            _reject_new_targets(item)
+    elif isinstance(value, dict):
+        for item in value.values():
+            _reject_new_targets(item)
 
 
 class MapVariableHook(StubHook):
-    """A hook representing a variable in a map function.
-    
-    This is a placeholder that tracks which instruction result it refers to.
-    It cannot be pulled or used outside the map context.
+    """A hook representing a variable in a map function (map.ts:188-233).
+
+    A placeholder tracking which instruction result it refers to. It cannot
+    be pulled or used outside the recording context.
     """
-    
-    def __init__(self, mapper: MapBuilder, idx: int) -> None:
+
+    def __init__(self, mapper: "MapBuilder", idx: int) -> None:
         self.mapper = mapper
         self.idx = idx
-    
-    def dup(self) -> MapVariableHook:
-        """Variables can be freely shared within a map."""
+
+    def dup(self) -> "MapVariableHook":
+        """Nothing to dispose, so dup() can return the same hook (map.ts:194)."""
         return self
-    
+
     def dispose(self) -> None:
         """Nothing to dispose for variables."""
-        pass
-    
+
     def get(self, path: list[str | int]) -> StubHook:
-        """Get a property - generates a pipeline instruction."""
+        """Get a property — records a pipeline instruction (map.ts:197-208).
+
+        This IS invoked during serialization (devaluating a placeholder
+        property), so it must work while a builder is registered.
+        """
         if not path:
+            # Cannot be pulled and dispose() is a no-op, so the same hook can
+            # represent the empty-path get.
             return self
-        
-        global _current_map_builder
-        if _current_map_builder:
+
+        if _current_map_builder is not None:
             return _current_map_builder.push_get(self, path)
-        
-        raise RpcError.internal(
-            "Attempted to use an abstract placeholder from a mapper function. "
-            "Please make sure your map function has no side effects."
-        )
-    
-    async def call(self, path: list[str | int], args: RpcPayload) -> StubHook:
-        """Call should be intercepted by MapBuilder."""
-        raise RpcError.internal(
-            "Attempted to use an abstract placeholder from a mapper function. "
-            "Please make sure your map function has no side effects."
-        )
-    
+
+        raise _placeholder_use_error()
+
+    def call(self, path: list[str | int], args: RpcPayload) -> StubHook:
+        """Can't be called; all calls are intercepted (map.ts:211-214)."""
+        raise _placeholder_use_error()
+
     def map(
         self,
         path: list[str | int],
         captures: list[StubHook],
         instructions: list[Any],
     ) -> StubHook:
-        """Nested map - should be intercepted."""
-        raise RpcError.internal(
-            "Attempted to use an abstract placeholder from a mapper function. "
-            "Please make sure your map function has no side effects."
-        )
-    
+        """Can't be called; all map()s are intercepted (map.ts:216-219)."""
+        raise _placeholder_use_error()
+
     async def pull(self) -> RpcPayload:
-        """Map variables cannot be pulled - map functions cannot be async."""
-        raise RpcError.internal("RPC map() callbacks cannot be async.")
-    
+        """Map functions cannot await (map.ts:221-224)."""
+        raise _placeholder_use_error()
+
     def ignore_unhandled_rejections(self) -> None:
-        """Nothing to do."""
-        pass
-    
+        """Probably never called but whatever (map.ts:226-228)."""
+
     def on_broken(self, callback: Any) -> None:
-        """Variables don't track broken callbacks."""
-        raise RpcError.internal(
-            "Attempted to use an abstract placeholder from a mapper function."
-        )
+        """Placeholders have no failure channel (map.ts:230-232)."""
+        raise _placeholder_use_error()
 
 
 class MapBuilder:
-    """Builder for constructing map instructions.
-    
-    The MapBuilder intercepts all RPC calls made within a map callback
-    and converts them into serializable instructions.
-    
+    """Records the body of a ``.map()`` callback (map.ts:17-155).
+
+    Implements the C-EXPORTER protocol with recorder semantics: capability
+    references devaluate into capture indices instead of session exports.
+
     Usage:
         ```python
         builder = MapBuilder(subject_hook, path)
@@ -145,197 +160,258 @@ class MapBuilder:
             builder.unregister()
         ```
     """
-    
+
     def __init__(self, subject: StubHook, path: list[str | int]) -> None:
-        """Initialize the map builder.
-        
+        """Initialize the map builder and register it as current.
+
         Args:
             subject: The hook to map over
             path: Property path to the array
         """
         global _current_map_builder
-        
-        if _current_map_builder:
-            # Nested map - capture subject from parent
-            self.context = MapContext(
-                parent=_current_map_builder,
-                captures=[],
-                subject=_current_map_builder.capture(subject),
-                path=path,
-            )
+
+        # Context: for a nested map, the subject is captured from the parent
+        # builder and captures are parent indices; for a root map, the
+        # subject is the hook itself and captures are hooks (map.ts:25-43).
+        self.parent: MapBuilder | None = _current_map_builder
+        self.path = list(path)
+        if self.parent is not None:
+            self.captures: list[Any] = []  # parent capture indices (int)
+            self.subject: Any = self.parent.capture(subject)
         else:
-            # Root map
-            self.context = MapContext(
-                parent=None,
-                captures=[],
-                subject=subject,
-                path=path,
-            )
-        
-        self._capture_map: dict[int, int] = {}  # hook id -> capture index
+            self.captures = []  # owned StubHooks
+            self.subject = subject
+
+        self._capture_map: dict[int, int] = {}  # id(hook) -> capture index
         self._instructions: list[MapInstruction] = []
-        
-        # Register as current builder
+
         _current_map_builder = self
-    
+
     def unregister(self) -> None:
-        """Unregister this builder from the global context."""
+        """Unregister this builder from the recording context (map.ts:45-47)."""
         global _current_map_builder
-        _current_map_builder = self.context.parent
-    
+        _current_map_builder = self.parent
+
     def make_input(self) -> MapVariableHook:
-        """Create a hook representing the map input (index 0)."""
+        """Create the hook representing the map input (index 0)."""
         return MapVariableHook(self, 0)
-    
+
     def make_output(self, result: RpcPayload) -> StubHook:
-        """Finalize the map and return the result hook.
-        
-        Args:
-            result: The result payload from the map callback
-            
-        Returns:
-            A hook representing the mapped result
+        """Finalize the recording and return the result hook (map.ts:53-75).
+
+        The devaluated result is the FINAL instruction (the mapper's return
+        value). A root builder dispatches ``subject.map(...)``; a nested
+        builder appends a ``["remap", ...]`` instruction to its parent.
         """
         from capnweb.serializer import Serializer
-        
-        # Serialize the result as the final instruction
-        serializer = Serializer(exporter=self)
-        serialized = serializer.serialize_value(result.value)
-        result.dispose()
-        
-        # Add the final instruction (the return value)
-        self._instructions.append(serialized)
-        
-        if self.context.parent:
-            # Nested map - add remap instruction to parent
-            captures_wire = [["import", cap] for cap in self.context.captures]
-            self.context.parent._instructions.append([
+
+        try:
+            _reject_new_targets(result.value)
+            # Devaluate the RAW value (TS Devaluator.devaluate on the
+            # un-copied payload, map.ts:56): a deep copy would materialize
+            # placeholder property paths via hook.get() OUTSIDE this
+            # builder's registration, corrupting the recording.
+            serializer = Serializer(exporter=self)
+            devalued = serializer.serialize(result.value)
+        finally:
+            result.dispose()
+
+        # The result is the final instruction.
+        self._instructions.append(devalued)
+
+        if self.parent is not None:
+            # Nested map: emit a remap instruction into the parent recording
+            # (map.ts:65-71).
+            self.parent._instructions.append([
                 "remap",
-                self.context.subject,
-                self.context.path,
-                captures_wire,
+                self.subject,
+                self.path,
+                [["import", cap] for cap in self.captures],
                 self._instructions,
             ])
-            return MapVariableHook(
-                self.context.parent,
-                len(self.context.parent._instructions),
-            )
-        else:
-            # Root map - call map on the subject
-            return self.context.subject.map(
-                self.context.path,
-                self.context.captures,  # type: ignore
-                self._instructions,
-            )
-    
+            return MapVariableHook(self.parent, len(self.parent._instructions))
+
+        # Root map: dispatch to the subject hook.
+        return self.subject.map(self.path, self.captures, self._instructions)
+
     def push_call(
         self,
         hook: StubHook,
         path: list[str | int],
         params: RpcPayload,
     ) -> StubHook:
-        """Push a call instruction and return a variable for the result.
-        
+        """Record a call instruction; returns a variable for the result.
+
+        Port of map.ts:77-86 including the arg-unwrap HACK: the devaluator
+        escapes the args array as ``[[...]]``; instruction args must be
+        UN-escaped (matching sendCall and the evaluator's re-wrap
+        ``evaluate([args])``, serialize.ts:898-900).
+
         Args:
-            hook: The hook to call on
+            hook: The hook being called
             path: Property path + method name
-            params: Arguments
-            
+            params: Arguments payload
+
         Returns:
-            A MapVariableHook for the result
+            A MapVariableHook for the call's result
         """
         from capnweb.serializer import Serializer
-        
-        # Serialize arguments
+
+        _reject_new_targets(params.value)
+        # Devaluate the RAW args (no deep copy — see make_output).
         serializer = Serializer(exporter=self)
-        serialized_args = serializer.serialize_value(params.value)
-        
-        # Capture the subject
-        subject_idx = self.capture(hook.dup())
-        
-        # Add pipeline instruction with args
-        self._instructions.append(["pipeline", subject_idx, path, serialized_args])
-        
+        devalued = serializer.serialize(params.value)
+        # HACK (map.ts:79-81): args are an array, so the devaluator wrapped
+        # them in a second array. Unwrap.
+        devalued = devalued[0]
+
+        subject = self.capture(hook.dup())
+        self._instructions.append(["pipeline", subject, list(path), devalued])
         return MapVariableHook(self, len(self._instructions))
-    
+
     def push_get(self, hook: StubHook, path: list[str | int]) -> StubHook:
-        """Push a property get instruction and return a variable for the result.
-        
+        """Record a property-get instruction (map.ts:88-92).
+
         Args:
-            hook: The hook to get from
+            hook: The hook being read
             path: Property path
-            
+
         Returns:
-            A MapVariableHook for the result
+            A MapVariableHook for the property's value
         """
-        subject_idx = self.capture(hook.dup())
-        
-        # Add pipeline instruction without args (property get)
-        self._instructions.append(["pipeline", subject_idx, path])
-        
+        subject = self.capture(hook.dup())
+        self._instructions.append(["pipeline", subject, list(path)])
         return MapVariableHook(self, len(self._instructions))
-    
+
     def capture(self, hook: StubHook) -> int:
-        """Capture a hook and return its index.
-        
-        Captured hooks are external references used in the map function.
-        Index 0 is the input, positive indices are instruction results,
-        negative indices are captures.
-        
+        """Capture a hook into the mapper's index space (map.ts:94-115).
+
+        Own placeholders return their variable index; external hooks are
+        deduplicated and assigned negative capture indices (-1, -2, ...);
+        nested builders capture through their parent.
+
         Args:
             hook: The hook to capture
-            
+
         Returns:
-            The capture index (negative for captures, positive for variables)
+            The mapper-space index for the hook
         """
-        # Check if it's already one of our variables
         if isinstance(hook, MapVariableHook) and hook.mapper is self:
+            # Already one of our own variables.
             return hook.idx
-        
-        # Check if already captured
+
         hook_id = id(hook)
-        if hook_id in self._capture_map:
-            return self._capture_map[hook_id]
-        
-        # Add new capture
-        if self.context.parent:
-            # Nested - capture from parent
-            parent_idx = self.context.parent.capture(hook)
-            self.context.captures.append(parent_idx)
+        existing = self._capture_map.get(hook_id)
+        if existing is not None:
+            return existing
+
+        if self.parent is not None:
+            parent_idx = self.parent.capture(hook)
+            self.captures.append(parent_idx)
         else:
-            # Root - store the hook directly
-            self.context.captures.append(hook)
-        
-        # Captures use negative indices: -1, -2, -3, ...
-        result = -len(self.context.captures)
+            self.captures.append(hook)
+
+        result = -len(self.captures)
         self._capture_map[hook_id] = result
         return result
-    
-    # Exporter protocol implementation
-    
+
+    # -----------------------------------------------------------------------
+    # C-EXPORTER protocol (recorder semantics, map.ts:117-155)
+    # -----------------------------------------------------------------------
+
     def export_capability(self, stub: Any) -> int:
-        """Export a capability - not allowed in map functions."""
-        raise RpcError.internal(
-            "Can't construct an RpcTarget or RPC callback inside a mapper function. "
-            "Try creating a new RpcStub outside the callback first, then using it "
-            "inside the callback."
+        """Reject NEW RpcTargets/callbacks constructed inside the mapper.
+
+        Existing stubs never reach here — the serializer probes
+        ``get_import`` first, which captures them (map.ts:120-136). Only a
+        genuinely-new target (wrapped into a fresh stub during payload deep
+        copy) falls through to this error.
+        """
+        raise RpcError(
+            "Error",
+            "Can't construct an RpcTarget or RPC callback inside a mapper "
+            "function. Try creating a new RpcStub outside the callback "
+            "first, then using it inside the callback.",
         )
-    
+
     def export_promise(self, stub: Any) -> int:
-        """Export a promise - not allowed in map functions."""
+        """Same restriction as export_capability (map.ts:137-139)."""
         return self.export_capability(stub)
-    
+
     def get_import(self, hook: StubHook) -> int | None:
-        """Get the import ID for a hook if captured."""
-        return self.capture(hook)
-    
-    def unexport(self, ids: list[int]) -> None:
-        """Unexport - no-op for map builder."""
-        pass
-    
+        """Every hook devaluated inside a mapper is a capture (map.ts:140-142).
+
+        Non-placeholder hooks are captured as a dup(): the devaluated stub
+        stays owned by the application, while the captures list transfers
+        ownership to ``sendMap`` (which exports or releases them).
+        """
+        if isinstance(hook, MapVariableHook):
+            return self.capture(hook)
+        return self.capture(hook.dup())
+
+    def unexport(self, ids: list[Any]) -> None:
+        """No-op: a failed recording is cooked anyway (map.ts:144-146)."""
+
+    def create_pipe(self, readable: Any, guard_hook: Any = None) -> int:
+        """Streams cannot cross into mapper instructions (map.ts:148-150)."""
+        raise RpcError(
+            "Error", "Cannot send ReadableStream inside a mapper function."
+        )
+
     def on_send_error(self, error: Exception) -> Exception | None:
-        """Handle send error - not used in map builder."""
+        """No error rewriting inside a recording (map.ts:152-154)."""
         return None
+
+
+def send_map(
+    subject: StubHook,
+    path: list[str | int],
+    func: Callable[[Any], Any],
+) -> "RpcPromise":
+    """Record a mapper callback and dispatch the map (mapImpl.sendMap,
+    map.ts:157-179).
+
+    Runs ``func`` exactly once, synchronously, under the call interceptor.
+    Misuse (throwing callbacks, placeholder abuse, async callbacks) raises
+    synchronously out of the ``.map()`` call site.
+
+    Args:
+        subject: The hook to map over
+        path: Property path to the array (derived from the promise chain)
+        func: The mapper callback
+
+    Returns:
+        An RpcPromise for the mapped result
+
+    Raises:
+        RpcError: If the callback is async or misuses placeholders.
+    """
+    from capnweb.stubs import RpcPromise, RpcStub, with_call_interceptor
+
+    builder = MapBuilder(subject, path)
+    try:
+        result = with_call_interceptor(
+            builder.push_call,
+            lambda: func(RpcPromise(builder.make_input(), [])),
+        )
+    finally:
+        builder.unregister()
+
+    # Detect misuse: map callbacks cannot be async (map.ts:168-176). Handle
+    # plain coroutines, async generators, and other awaitables — but NOT
+    # RpcPromise/RpcStub, which are awaitable placeholders and the normal
+    # currency of a recording (TS checks `instanceof Promise`, which an
+    # RpcPromise is not).
+    if asyncio.iscoroutine(result):
+        result.close()  # squelch the never-awaited warning
+        raise RpcError("Error", "RPC map() callbacks cannot be async.")
+    if inspect.isasyncgen(result):
+        raise RpcError("Error", "RPC map() callbacks cannot be async.")
+    if not isinstance(result, (RpcPromise, RpcStub)) and inspect.isawaitable(result):
+        raise RpcError("Error", "RPC map() callbacks cannot be async.")
+
+    result_payload = RpcPayload.from_app_return(result)
+    return RpcPromise(builder.make_output(result_payload), [])
 
 
 def build_map(
@@ -343,64 +419,6 @@ def build_map(
     path: list[str | int],
     func: Callable[[Any], Any],
 ) -> StubHook:
-    """Build a map operation from a callback function.
-    
-    This is the main entry point for creating map operations.
-    
-    Args:
-        subject: The hook to map over
-        path: Property path to the array
-        func: The map callback function
-        
-    Returns:
-        A hook representing the mapped result
-        
-    Raises:
-        RpcError: If the callback is async or uses placeholders incorrectly
-    """
-    from capnweb.stubs import RpcPromise
-    
-    builder = MapBuilder(subject, path)
-    try:
-        # Create input placeholder
-        input_hook = builder.make_input()
-        input_promise = RpcPromise(input_hook)
-        
-        # Execute the callback with call interception
-        # TODO: Implement proper call interception like TypeScript
-        result = func(input_promise)
-        
-        # Check for async - not allowed
-        if asyncio.iscoroutine(result):
-            # Cancel the coroutine to avoid warnings
-            result.close()
-            raise RpcError.internal("RPC map() callbacks cannot be async.")
-        
-        # Convert result to payload
-        result_payload = RpcPayload.from_app_return(result)
-        
-        return builder.make_output(result_payload)
-    finally:
-        builder.unregister()
-
-
-# Call interceptor for map operations
-def with_call_interceptor(
-    interceptor: Callable[[StubHook, list[str | int], RpcPayload], StubHook],
-    callback: Callable[[], Any],
-) -> Any:
-    """Execute a callback with a call interceptor.
-    
-    This allows intercepting all RPC calls made within the callback.
-    Used by MapBuilder to capture calls as instructions.
-    
-    Args:
-        interceptor: Function to intercept calls
-        callback: The callback to execute
-        
-    Returns:
-        The result of the callback
-    """
-    # TODO: Implement proper call interception
-    # For now, just execute the callback directly
-    return callback()
+    """Like :func:`send_map` but returns the raw result StubHook."""
+    promise = send_map(subject, path, func)
+    return promise._raw_hook

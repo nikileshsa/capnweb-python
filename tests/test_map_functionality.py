@@ -188,14 +188,27 @@ class TestPayloadStubHookMap:
 class TestTargetStubHookMap:
     """Tests for TargetStubHook.map()."""
 
-    def test_map_returns_error(self) -> None:
-        """map() on target should return error (targets aren't arrays)."""
+    async def test_map_empty_instructions_rejected(self) -> None:
+        """map() with an empty instruction list is invalid (map.ts:252-254)."""
         target = ArrayTarget([1, 2, 3])
         hook = TargetStubHook(target)
 
         result = hook.map([], [], [])
 
-        assert isinstance(result, ErrorStubHook)
+        with pytest.raises(RpcError, match="Invalid empty mapper function"):
+            await result.pull()
+
+    async def test_map_over_target_whole_subject(self) -> None:
+        """B2/TS parity: mapping a target applies the mapper to it as a
+        single value (ValueStubHook.map -> applyMap single-value branch)."""
+        target = ArrayTarget([1, 2, 3])
+        hook = TargetStubHook(target)
+
+        # identity mapper: instructions = [["pipeline", 0]]
+        result = hook.map([], [], [["pipeline", 0]])
+        payload = await result.pull()
+        # The single-value branch wraps the target in a stub for the mapper.
+        assert payload.value is not None
 
 
 # -----------------------------------------------------------------------------

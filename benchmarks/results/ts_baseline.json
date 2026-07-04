@@ -1,0 +1,459 @@
+{
+  "env": {
+    "timestamp": "2026-07-04T18:26:43.548Z",
+    "node_version": "v24.4.1",
+    "v8_version": "13.6.233.10-node.17",
+    "platform": "Darwin 25.2.0",
+    "arch": "arm64",
+    "cpu_brand": "Apple M4 Max",
+    "ncpu": 16,
+    "capnweb_version": "0.9.0"
+  },
+  "results": [
+    {
+      "name": "deserialize/bytes_blob_1mb",
+      "group": "codec.deserialize",
+      "samples": 60,
+      "inner": 200,
+      "bytes": 1398114,
+      "extra": {
+        "wire_bytes": 1398114
+      },
+      "ns_median": 584488.54,
+      "ns_p95": 592163.545,
+      "ns_mean": 585103.1350833334,
+      "ns_stddev": 4226.230205362244,
+      "ns_min": 578467.915,
+      "ops_per_sec": 1710.8975310277253
+    },
+    {
+      "name": "deserialize/error_value",
+      "group": "codec.deserialize",
+      "samples": 60,
+      "inner": 8000,
+      "bytes": 51,
+      "extra": {
+        "wire_bytes": 51
+      },
+      "ns_median": 2935.421875,
+      "ns_p95": 3174.838625,
+      "ns_mean": 2964.8324729166666,
+      "ns_stddev": 115.75154750332104,
+      "ns_min": 2892.296875,
+      "ops_per_sec": 340666.53536810615
+    },
+    {
+      "name": "deserialize/large_array_10k_ints",
+      "group": "codec.deserialize",
+      "samples": 60,
+      "inner": 40,
+      "bytes": 48893,
+      "extra": {
+        "wire_bytes": 48893
+      },
+      "ns_median": 103227.6125,
+      "ns_p95": 107629.175,
+      "ns_mean": 103261.40416666669,
+      "ns_stddev": 2369.865710608087,
+      "ns_min": 97580.2,
+      "ops_per_sec": 9687.330509557218
+    },
+    {
+      "name": "deserialize/large_string_1mb",
+      "group": "codec.deserialize",
+      "samples": 60,
+      "inner": 200,
+      "bytes": 1048578,
+      "extra": {
+        "wire_bytes": 1048578
+      },
+      "ns_median": 361612.5,
+      "ns_p95": 366846.455,
+      "ns_mean": 362179.7879166665,
+      "ns_stddev": 2863.2810178364866,
+      "ns_min": 357209.79,
+      "ops_per_sec": 2765.3911300079503
+    },
+    {
+      "name": "deserialize/nested_object",
+      "group": "codec.deserialize",
+      "samples": 60,
+      "inner": 4000,
+      "bytes": 245,
+      "extra": {
+        "wire_bytes": 245
+      },
+      "ns_median": 1232.130125,
+      "ns_p95": 1266,
+      "ns_mean": 1235.3422,
+      "ns_stddev": 19.168444684113446,
+      "ns_min": 1206.39575,
+      "ops_per_sec": 811602.5894586418
+    },
+    {
+      "name": "deserialize/short_string",
+      "group": "codec.deserialize",
+      "samples": 60,
+      "inner": 20000,
+      "bytes": 13,
+      "extra": {
+        "wire_bytes": 13
+      },
+      "ns_median": 45.981275,
+      "ns_p95": 48.8771,
+      "ns_mean": 46.78771416666667,
+      "ns_stddev": 3.155472928488582,
+      "ns_min": 44.4917,
+      "ops_per_sec": 21747983.282325253
+    },
+    {
+      "name": "deserialize/small_scalar",
+      "group": "codec.deserialize",
+      "samples": 60,
+      "inner": 20000,
+      "bytes": 2,
+      "extra": {
+        "wire_bytes": 2
+      },
+      "ns_median": 36.5125,
+      "ns_p95": 40.19585,
+      "ns_mean": 37.96121333333334,
+      "ns_stddev": 6.649740617365378,
+      "ns_min": 34.99585,
+      "ops_per_sec": 27387880.862718247
+    },
+    {
+      "name": "roundtrip/bytes_blob_1mb",
+      "group": "codec.roundtrip",
+      "samples": 60,
+      "inner": 200,
+      "bytes": 1398114,
+      "extra": {
+        "wire_bytes": 1398114
+      },
+      "ns_median": 1877261.6675,
+      "ns_p95": 1927286.875,
+      "ns_mean": 1881016.0904999995,
+      "ns_stddev": 16012.472240601479,
+      "ns_min": 1859592.915,
+      "ops_per_sec": 532.6907896285588
+    },
+    {
+      "name": "roundtrip/error_value",
+      "group": "codec.roundtrip",
+      "samples": 60,
+      "inner": 8000,
+      "bytes": 51,
+      "extra": {
+        "wire_bytes": 51
+      },
+      "ns_median": 3411.7578750000002,
+      "ns_p95": 3449.323,
+      "ns_mean": 3412.341406250001,
+      "ns_stddev": 23.12439700907113,
+      "ns_min": 3359.916625,
+      "ops_per_sec": 293104.035115622
+    },
+    {
+      "name": "roundtrip/large_array_10k_ints",
+      "group": "codec.roundtrip",
+      "samples": 60,
+      "inner": 40,
+      "bytes": 48893,
+      "extra": {
+        "wire_bytes": 48893
+      },
+      "ns_median": 240140.625,
+      "ns_p95": 248011.45,
+      "ns_mean": 245007.30916666664,
+      "ns_stddev": 34073.48048696497,
+      "ns_min": 229596.875,
+      "ops_per_sec": 4164.2266900904415
+    },
+    {
+      "name": "roundtrip/large_string_1mb",
+      "group": "codec.roundtrip",
+      "samples": 60,
+      "inner": 200,
+      "bytes": 1048578,
+      "extra": {
+        "wire_bytes": 1048578
+      },
+      "ns_median": 1011157.1875,
+      "ns_p95": 1049495,
+      "ns_mean": 1018702.6736666667,
+      "ns_stddev": 17866.589713946145,
+      "ns_min": 996024.375,
+      "ops_per_sec": 988.9659217795947
+    },
+    {
+      "name": "roundtrip/nested_object",
+      "group": "codec.roundtrip",
+      "samples": 60,
+      "inner": 4000,
+      "bytes": 245,
+      "extra": {
+        "wire_bytes": 245
+      },
+      "ns_median": 2185.4269999999997,
+      "ns_p95": 2233.30225,
+      "ns_mean": 2189.7368208333332,
+      "ns_stddev": 32.33131317321273,
+      "ns_min": 2126.46875,
+      "ops_per_sec": 457576.48276515305
+    },
+    {
+      "name": "roundtrip/short_string",
+      "group": "codec.roundtrip",
+      "samples": 60,
+      "inner": 20000,
+      "bytes": 13,
+      "extra": {
+        "wire_bytes": 13
+      },
+      "ns_median": 86.583325,
+      "ns_p95": 89.3,
+      "ns_mean": 86.96833583333334,
+      "ns_stddev": 2.819001564104621,
+      "ns_min": 84.3604,
+      "ops_per_sec": 11549568.002845813
+    },
+    {
+      "name": "roundtrip/small_scalar",
+      "group": "codec.roundtrip",
+      "samples": 60,
+      "inner": 20000,
+      "bytes": 2,
+      "extra": {
+        "wire_bytes": 2
+      },
+      "ns_median": 74.30102500000001,
+      "ns_p95": 80.08955,
+      "ns_mean": 75.3558325,
+      "ns_stddev": 3.2409613519220013,
+      "ns_min": 72.7396,
+      "ops_per_sec": 13458764.532521589
+    },
+    {
+      "name": "serialize/bytes_blob_1mb",
+      "group": "codec.serialize",
+      "samples": 60,
+      "inner": 200,
+      "bytes": 1398114,
+      "extra": {
+        "wire_bytes": 1398114
+      },
+      "ns_median": 1339632.1875,
+      "ns_p95": 1384980.21,
+      "ns_mean": 1342105.2883333336,
+      "ns_stddev": 16275.985543352434,
+      "ns_min": 1280988.545,
+      "ops_per_sec": 746.4735539582576
+    },
+    {
+      "name": "serialize/error_value",
+      "group": "codec.serialize",
+      "samples": 60,
+      "inner": 8000,
+      "bytes": 51,
+      "extra": {
+        "wire_bytes": 51
+      },
+      "ns_median": 422.586,
+      "ns_p95": 439.026,
+      "ns_mean": 420.84653125000006,
+      "ns_stddev": 28.582011388909326,
+      "ns_min": 334.4115,
+      "ops_per_sec": 2366382.2275229185
+    },
+    {
+      "name": "serialize/large_array_10k_ints",
+      "group": "codec.serialize",
+      "samples": 60,
+      "inner": 40,
+      "bytes": 48893,
+      "extra": {
+        "wire_bytes": 48893
+      },
+      "ns_median": 137181.25,
+      "ns_p95": 149978.125,
+      "ns_mean": 138148.2104166667,
+      "ns_stddev": 4532.542939600083,
+      "ns_min": 130994.8,
+      "ops_per_sec": 7289.625951068386
+    },
+    {
+      "name": "serialize/large_string_1mb",
+      "group": "codec.serialize",
+      "samples": 60,
+      "inner": 200,
+      "bytes": 1048578,
+      "extra": {
+        "wire_bytes": 1048578
+      },
+      "ns_median": 658501.46,
+      "ns_p95": 669485.205,
+      "ns_mean": 657625.5449166666,
+      "ns_stddev": 10411.99018860249,
+      "ns_min": 635965.21,
+      "ops_per_sec": 1518.5995183670511
+    },
+    {
+      "name": "serialize/nested_object",
+      "group": "codec.serialize",
+      "samples": 60,
+      "inner": 4000,
+      "bytes": 245,
+      "extra": {
+        "wire_bytes": 245
+      },
+      "ns_median": 885.1145,
+      "ns_p95": 963.6665,
+      "ns_mean": 890.4046791666666,
+      "ns_stddev": 32.39844754659331,
+      "ns_min": 823.4375,
+      "ops_per_sec": 1129797.3313057236
+    },
+    {
+      "name": "serialize/short_string",
+      "group": "codec.serialize",
+      "samples": 60,
+      "inner": 20000,
+      "bytes": 13,
+      "extra": {
+        "wire_bytes": 13
+      },
+      "ns_median": 42.534375,
+      "ns_p95": 46.0375,
+      "ns_mean": 43.02652666666667,
+      "ns_stddev": 2.61170266354899,
+      "ns_min": 40.9167,
+      "ops_per_sec": 23510396.00323268
+    },
+    {
+      "name": "serialize/small_scalar",
+      "group": "codec.serialize",
+      "samples": 60,
+      "inner": 20000,
+      "bytes": 2,
+      "extra": {
+        "wire_bytes": 2
+      },
+      "ns_median": 37.136449999999996,
+      "ns_p95": 49.21875,
+      "ns_mean": 38.89516916666667,
+      "ns_stddev": 7.845911983999967,
+      "ns_min": 34.5375,
+      "ops_per_sec": 26927721.955114182
+    },
+    {
+      "name": "batch/1000_calls_msgport",
+      "group": "rpc.batch",
+      "samples": 30,
+      "inner": 1,
+      "bytes": 0,
+      "extra": {
+        "calls_per_sec": 145719.48998178507,
+        "n_calls": 1000
+      },
+      "ns_median": 6862500,
+      "ns_p95": 7841750,
+      "ns_mean": 7040720.833333333,
+      "ns_stddev": 516542.69487217185,
+      "ns_min": 6547250,
+      "ops_per_sec": 145.71948998178507
+    },
+    {
+      "name": "fanout/100sess_x20calls",
+      "group": "rpc.fanout",
+      "samples": 25,
+      "inner": 1,
+      "bytes": 0,
+      "extra": {
+        "calls_per_sec": 123707.19027631795,
+        "total_calls": 2000,
+        "sessions": 100
+      },
+      "ns_median": 16167209,
+      "ns_p95": 16984000,
+      "ns_mean": 16277384.92,
+      "ns_stddev": 372813.60785785917,
+      "ns_min": 15749417,
+      "ops_per_sec": 61.85359513815897
+    },
+    {
+      "name": "pipeline/5deep_pipelined",
+      "group": "rpc.pipeline",
+      "samples": 40,
+      "inner": 100,
+      "bytes": 0,
+      "extra": {},
+      "ns_median": 24306.870000000003,
+      "ns_p95": 34589.59,
+      "ns_mean": 26015.469000000005,
+      "ns_stddev": 4902.901084917888,
+      "ns_min": 23344.58,
+      "ops_per_sec": 41140.632257464655
+    },
+    {
+      "name": "pipeline/5deep_sequential",
+      "group": "rpc.pipeline",
+      "samples": 40,
+      "inner": 100,
+      "bytes": 0,
+      "extra": {},
+      "ns_median": 44464.17,
+      "ns_p95": 47442.5,
+      "ns_mean": 44979.84524999999,
+      "ns_stddev": 1690.3096480556271,
+      "ns_min": 43139.17,
+      "ops_per_sec": 22490.018367598
+    },
+    {
+      "name": "roundtrip/add(2,3)",
+      "group": "rpc.roundtrip",
+      "samples": 40,
+      "inner": 200,
+      "bytes": 0,
+      "extra": {},
+      "ns_median": 9550.7275,
+      "ns_p95": 12867.5,
+      "ns_mean": 10131.619750000003,
+      "ns_stddev": 1818.0618916891792,
+      "ns_min": 8490.21,
+      "ops_per_sec": 104704.06573740063
+    },
+    {
+      "name": "roundtrip/echo(nested)",
+      "group": "rpc.roundtrip",
+      "samples": 40,
+      "inner": 200,
+      "bytes": 0,
+      "extra": {},
+      "ns_median": 11351.875,
+      "ns_p95": 13440.415,
+      "ns_mean": 11837.171874999996,
+      "ns_stddev": 1441.9519686759193,
+      "ns_min": 10753.96,
+      "ops_per_sec": 88091.17436546827
+    },
+    {
+      "name": "stream/64MiB_msgport",
+      "group": "stream.throughput",
+      "samples": 7,
+      "inner": 1,
+      "bytes": 67108864,
+      "ns_median": 15463250,
+      "ns_p95": 18494875,
+      "ns_mean": 15661869,
+      "ns_stddev": 0,
+      "ns_min": 14452208,
+      "ops_per_sec": 0,
+      "extra": {
+        "MB_per_sec": 4138.8,
+        "MiB_total": 64,
+        "chunk_bytes": 65536
+      }
+    }
+  ]
+}

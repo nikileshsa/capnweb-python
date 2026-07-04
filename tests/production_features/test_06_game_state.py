@@ -14,6 +14,7 @@ from typing import Any
 
 from capnweb import RpcTarget, RpcError
 from capnweb.ws_session import WebSocketRpcClient, WebSocketRpcServer
+from ..support import rpc_call
 
 
 @dataclass
@@ -123,10 +124,10 @@ class TestGameState:
             callback = PlayerCallback(name="player1")
             url = f"ws://localhost:{port}/rpc"
             async with WebSocketRpcClient(url, local_main=callback) as client:
-                result = await client.call(0, "join", ["player1", callback])
+                result = await rpc_call(client, "join", ["player1", callback])
                 assert result["player_id"] == "player1"
                 
-                state = await client.call(0, "get_state", [])
+                state = await rpc_call(client, "get_state", [])
                 assert "player1" in state["players"]
         finally:
             await server.stop()
@@ -145,10 +146,10 @@ class TestGameState:
             
             async with WebSocketRpcClient(url, local_main=cb1) as client1:
                 async with WebSocketRpcClient(url, local_main=cb2) as client2:
-                    await client1.call(0, "join", ["player1", cb1])
-                    await client2.call(0, "join", ["player2", cb2])
+                    await rpc_call(client1, "join", ["player1", cb1])
+                    await rpc_call(client2, "join", ["player2", cb2])
                     
-                    await client1.call(0, "action", ["player1", {"type": "move", "position": [10, 20]}])
+                    await rpc_call(client1, "action", ["player1", {"type": "move", "position": [10, 20]}])
                     await asyncio.sleep(0.1)
                     
                     # Player2 should receive the update
@@ -168,11 +169,11 @@ class TestGameState:
             callback = PlayerCallback(name="player1")
             url = f"ws://localhost:{port}/rpc"
             async with WebSocketRpcClient(url, local_main=callback) as client:
-                await client.call(0, "join", ["player1", callback])
-                result = await client.call(0, "leave", ["player1"])
+                await rpc_call(client, "join", ["player1", callback])
+                result = await rpc_call(client, "leave", ["player1"])
                 assert result["left"] == True
                 
-                state = await client.call(0, "get_state", [])
+                state = await rpc_call(client, "get_state", [])
                 assert "player1" not in state["players"]
         finally:
             await server.stop()
@@ -188,10 +189,10 @@ class TestGameState:
             callback = PlayerCallback(name="player1")
             url = f"ws://localhost:{port}/rpc"
             async with WebSocketRpcClient(url, local_main=callback) as client:
-                await client.call(0, "join", ["player1", callback])
+                await rpc_call(client, "join", ["player1", callback])
                 
                 tasks = [
-                    asyncio.create_task(client.call(0, "action", ["player1", {"type": "move", "position": [i, i]}]))
+                    asyncio.create_task(rpc_call(client, "action", ["player1", {"type": "move", "position": [i, i]}]))
                     for i in range(5)
                 ]
                 results = await asyncio.gather(*tasks)
@@ -214,13 +215,13 @@ class TestGameState:
             
             async with WebSocketRpcClient(url, local_main=cb1) as client1:
                 async with WebSocketRpcClient(url, local_main=cb2) as client2:
-                    await client1.call(0, "join", ["player1", cb1])
-                    await client2.call(0, "join", ["player2", cb2])
+                    await rpc_call(client1, "join", ["player1", cb1])
+                    await rpc_call(client2, "join", ["player2", cb2])
                     
-                    await client1.call(0, "action", ["player1", {}])
-                    await client2.call(0, "action", ["player2", {}])
+                    await rpc_call(client1, "action", ["player1", {}])
+                    await rpc_call(client2, "action", ["player2", {}])
                     
-                    stats = await client1.call(0, "get_stats", [])
+                    stats = await rpc_call(client1, "get_stats", [])
                     assert stats["player_count"] == 2
                     assert stats["broadcast_count"] == 2
         finally:

@@ -36,6 +36,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 from capnweb.types import RpcTarget
 from capnweb.stubs import RpcStub
 from capnweb.ws_session import WebSocketRpcClient
+from ..support import rpc_call
 
 # Handle both pytest import and standalone script
 try:
@@ -141,7 +142,7 @@ async def run_protocol_compatibility_demo(
         ) as client:
             # Register callback with server
             stub = RpcStub(client._session.get_export(0).dup())
-            await client.call(0, "registerCallback", [stub])
+            await rpc_call(client, "registerCallback", [stub])
             print(f"[{server_name}] Callback registered with server")
             
             start_time = time.time()
@@ -157,7 +158,7 @@ async def run_protocol_compatibility_demo(
                 method, args, checker, desc = PROTOCOL_TEST_CASES[test_case_idx % len(PROTOCOL_TEST_CASES)]
                 try:
                     result = await asyncio.wait_for(
-                        client.call(0, method, args),
+                        rpc_call(client, method, args),
                         timeout=10.0
                     )
                     if checker(result):
@@ -180,7 +181,7 @@ async def run_protocol_compatibility_demo(
                     try:
                         # Test: Server creates and returns a capability (Counter)
                         counter = await asyncio.wait_for(
-                            client.call(0, "makeCounter", [capability_test_idx]),
+                            rpc_call(client, "makeCounter", [capability_test_idx]),
                             timeout=10.0
                         )
                         stats["capability_creates"] += 1
@@ -202,7 +203,7 @@ async def run_protocol_compatibility_demo(
                 if test_case_idx % 10 == 0:
                     try:
                         result = await asyncio.wait_for(
-                            client.call(0, "triggerCallback", []),
+                            rpc_call(client, "triggerCallback", []),
                             timeout=10.0
                         )
                         stats["server_callbacks"] = callback.ping_count

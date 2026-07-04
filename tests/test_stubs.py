@@ -170,9 +170,11 @@ class TestRpcPromiseBasics:
         hook = PromiseStubHook(future)
         promise = RpcPromise(hook)
 
-        # Should not raise
+        # Should not raise. B2/TS parity (core.ts:1984-1994): dispose
+        # defers disposal to the eventual resolution; it does NOT cancel
+        # in-flight work (chained hooks share the future).
         promise.dispose()
-        assert future.cancelled()
+        assert not future.cancelled()
 
     @pytest.mark.asyncio
     async def test_promise_async_context_manager(self):

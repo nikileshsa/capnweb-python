@@ -33,9 +33,11 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'src'))
 
 from capnweb.ws_session import WebSocketRpcClient
 from capnweb.stubs import RpcStub
+from capnweb.types import RpcTarget
 
 from .test_target import TestTarget, Counter
 from .conftest import ServerProcess
+from ..support import rpc_call
 
 # Paths
 INTEROP_DIR = Path(__file__).parent
@@ -52,88 +54,88 @@ class TestPyClientTsServer:
     async def test_simple_square(self, ts_server: ServerProcess):
         """Test simple square call."""
         async with WebSocketRpcClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
-            result = await client.call(0, "square", [5])
+            result = await rpc_call(client, "square", [5])
             assert result == 25
     
     async def test_add(self, ts_server: ServerProcess):
         """Test add call."""
         async with WebSocketRpcClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
-            result = await client.call(0, "add", [3, 7])
+            result = await rpc_call(client, "add", [3, 7])
             assert result == 10
     
     async def test_greet(self, ts_server: ServerProcess):
         """Test greet call."""
         async with WebSocketRpcClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
-            result = await client.call(0, "greet", ["World"])
+            result = await rpc_call(client, "greet", ["World"])
             assert result == "Hello, World!"
     
     async def test_echo_string(self, ts_server: ServerProcess):
         """Test echo with string."""
         async with WebSocketRpcClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
-            result = await client.call(0, "echo", ["test message"])
+            result = await rpc_call(client, "echo", ["test message"])
             assert result == "test message"
     
     async def test_echo_number(self, ts_server: ServerProcess):
         """Test echo with number."""
         async with WebSocketRpcClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
-            result = await client.call(0, "echo", [42])
+            result = await rpc_call(client, "echo", [42])
             assert result == 42
     
     async def test_echo_array(self, ts_server: ServerProcess):
         """Test echo with array."""
         async with WebSocketRpcClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
-            result = await client.call(0, "echo", [[1, 2, 3]])
+            result = await rpc_call(client, "echo", [[1, 2, 3]])
             assert result == [1, 2, 3]
     
     async def test_echo_nested_object(self, ts_server: ServerProcess):
         """Test echo with nested object."""
         async with WebSocketRpcClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             obj = {"foo": {"bar": 123}, "baz": [1, 2, 3]}
-            result = await client.call(0, "echo", [obj])
+            result = await rpc_call(client, "echo", [obj])
             assert result == obj
     
     async def test_generate_fibonacci(self, ts_server: ServerProcess):
         """Test generateFibonacci."""
         async with WebSocketRpcClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
-            result = await client.call(0, "generateFibonacci", [10])
+            result = await rpc_call(client, "generateFibonacci", [10])
             assert result == [0, 1, 1, 2, 3, 5, 8, 13, 21, 34]
     
     async def test_get_list(self, ts_server: ServerProcess):
         """Test getList."""
         async with WebSocketRpcClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
-            result = await client.call(0, "getList", [])
+            result = await rpc_call(client, "getList", [])
             assert result == [1, 2, 3, 4, 5]
     
     async def test_return_null(self, ts_server: ServerProcess):
         """Test returnNull."""
         async with WebSocketRpcClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
-            result = await client.call(0, "returnNull", [])
+            result = await rpc_call(client, "returnNull", [])
             assert result is None
     
     async def test_return_number(self, ts_server: ServerProcess):
         """Test returnNumber."""
         async with WebSocketRpcClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
-            result = await client.call(0, "returnNumber", [123])
+            result = await rpc_call(client, "returnNumber", [123])
             assert result == 123
     
     async def test_throw_error(self, ts_server: ServerProcess):
         """Test throwError returns an error."""
         async with WebSocketRpcClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             with pytest.raises(Exception):
-                await client.call(0, "throwError", [])
+                await rpc_call(client, "throwError", [])
     
     async def test_make_counter(self, ts_server: ServerProcess):
         """Test makeCounter returns a capability."""
         async with WebSocketRpcClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             # Get counter capability
-            counter = await client.call(0, "makeCounter", [10])
+            counter = await rpc_call(client, "makeCounter", [10])
             # Counter should be a stub we can call
             assert counter is not None
     
     async def test_callback_roundtrip(self, ts_server: ServerProcess):
         """Test callback: register client capability, server calls it back."""
         
-        class ClientCallback:
+        class ClientCallback(RpcTarget):
             def __init__(self):
                 self.notifications: list[str] = []
             
@@ -156,11 +158,11 @@ class TestPyClientTsServer:
             
             # Send client's local main to server
             callback_stub = RpcStub(client._session.get_export(0).dup())
-            result = await client.call(0, "registerCallback", [callback_stub])
+            result = await rpc_call(client, "registerCallback", [callback_stub])
             assert result == "registered"
             
             # Have server call back
-            result = await client.call(0, "triggerCallback", [])
+            result = await rpc_call(client, "triggerCallback", [])
             assert result == "Got: ping"
             assert local.notifications == ["ping"]
 
@@ -176,37 +178,37 @@ class TestPyClientPyServer:
     async def test_simple_square(self, py_server: ServerProcess):
         """Test simple square call."""
         async with WebSocketRpcClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
-            result = await client.call(0, "square", [5])
+            result = await rpc_call(client, "square", [5])
             assert result == 25
     
     async def test_add(self, py_server: ServerProcess):
         """Test add call."""
         async with WebSocketRpcClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
-            result = await client.call(0, "add", [3, 7])
+            result = await rpc_call(client, "add", [3, 7])
             assert result == 10
     
     async def test_greet(self, py_server: ServerProcess):
         """Test greet call."""
         async with WebSocketRpcClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
-            result = await client.call(0, "greet", ["World"])
+            result = await rpc_call(client, "greet", ["World"])
             assert result == "Hello, World!"
     
     async def test_echo_array(self, py_server: ServerProcess):
         """Test echo with array."""
         async with WebSocketRpcClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
-            result = await client.call(0, "echo", [[1, 2, 3]])
+            result = await rpc_call(client, "echo", [[1, 2, 3]])
             assert result == [1, 2, 3]
     
     async def test_generate_fibonacci(self, py_server: ServerProcess):
         """Test generateFibonacci."""
         async with WebSocketRpcClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
-            result = await client.call(0, "generateFibonacci", [10])
+            result = await rpc_call(client, "generateFibonacci", [10])
             assert result == [0, 1, 1, 2, 3, 5, 8, 13, 21, 34]
     
     async def test_callback_roundtrip(self, py_server: ServerProcess):
         """Test callback: register client capability, server calls it back."""
         
-        class ClientCallback:
+        class ClientCallback(RpcTarget):
             def __init__(self):
                 self.notifications: list[str] = []
             
@@ -228,10 +230,10 @@ class TestPyClientPyServer:
             assert client._session is not None
             
             callback_stub = RpcStub(client._session.get_export(0).dup())
-            result = await client.call(0, "registerCallback", [callback_stub])
+            result = await rpc_call(client, "registerCallback", [callback_stub])
             assert result == "registered"
             
-            result = await client.call(0, "triggerCallback", [])
+            result = await rpc_call(client, "triggerCallback", [])
             assert result == "Got: ping"
             assert local.notifications == ["ping"]
 

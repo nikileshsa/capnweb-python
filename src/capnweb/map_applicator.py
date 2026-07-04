@@ -1,20 +1,19 @@
-"""Map applicator for executing map operations locally.
+"""MapApplicator — server-side execution of mapper instructions.
 
-This module implements the map() functionality that allows applying a function
-to array elements without transferring data back and forth over the network.
+Port of map.ts:237-351. A received ``["remap", ...]`` carries the recorded
+body of a ``.map()`` callback; this module evaluates those instructions once
+per input element, in the mapper's own index space:
 
-The map operation works by:
-1. Receiving instructions that describe a mapper function
-2. Applying those instructions to each element of an array
-3. Returning the mapped results
+* negative n  -> captures[-n-1] (stubs the sender captured)
+* 0           -> the input element
+* positive n  -> the result of instructions[n-1]
+* the last instruction is the mapper's return value
 
-Instructions format:
-- Each instruction is an expression to evaluate
-- The last instruction is the return value
-- Variables:
-  - 0: The input element being mapped
-  - Positive values (1-based): Results of previous instructions
-  - Negative values (-1-based): Captures (external stubs)
+Evaluation reuses the ONE Parser/Evaluator (parser.py) with the applicator
+as the Importer (C-IMPORTER): ``get_export`` resolves mapper indices, while
+``export``/``promise`` tags inside instructions HARD-FAIL — a mapper cannot
+reference exports (map.ts:279-286; security: index-aliasing, matrix 04
+row 15).
 """
 
 from __future__ import annotations
@@ -29,104 +28,128 @@ if TYPE_CHECKING:
 
 
 class MapApplicator:
-    """Applies map instructions to an input value.
-    
-    This class evaluates the instructions for a single element of the array
-    being mapped over.
+    """Applies map instructions to a single input element (map.ts:237-299).
+
+    Implements the C-IMPORTER surface with mapper index semantics.
     """
-    
+
     def __init__(self, captures: list["StubHook"], input_hook: "StubHook") -> None:
         """Initialize the applicator.
-        
+
         Args:
-            captures: External stubs used in the mapper function
-            input_hook: The input element wrapped in a hook
+            captures: External stubs used in the mapper function (borrowed —
+                the applyMap caller owns and disposes them)
+            input_hook: The input element wrapped in a hook (owned)
         """
         self.captures = captures
         # Variables: index 0 is input, positive indices are instruction results
         self.variables: list["StubHook"] = [input_hook]
-    
+
     def dispose(self) -> None:
-        """Dispose all variables."""
-        for var in self.variables:
+        """Dispose all variables (map.ts:244-248)."""
+        variables = self.variables
+        self.variables = []
+        for var in variables:
             var.dispose()
-    
+
     def apply(self, instructions: list[Any]) -> RpcPayload:
-        """Apply the instructions and return the result.
-        
+        """Evaluate the instructions; the last one is the return value.
+
         Args:
-            instructions: List of expressions to evaluate
-            
+            instructions: Raw JSON expressions in mapper index space
+
         Returns:
             The result payload
-            
+
         Raises:
             RpcError: If the instructions are invalid
         """
         from capnweb.hooks import PayloadStubHook
-        from capnweb.parser import Parser
-        
-        try:
-            if not instructions:
-                raise RpcError.bad_request("Invalid empty mapper function")
-            
-            # Evaluate all instructions except the last (which is the return value)
-            for instruction in instructions[:-1]:
-                payload = self._evaluate_instruction(instruction)
-                
-                # The payload usually contains a single stub - unwrap it
-                from capnweb.stubs import RpcStub
-                if isinstance(payload.value, RpcStub):
-                    hook = payload.value._hook
-                    self.variables.append(hook)
-                else:
-                    self.variables.append(PayloadStubHook(payload))
-            
-            # Evaluate the final instruction (return value)
-            return self._evaluate_instruction(instructions[-1])
-            
-        finally:
-            # Dispose all variables
-            for var in self.variables:
-                var.dispose()
-    
+
+        if not isinstance(instructions, list) or not instructions:
+            raise RpcError("Error", "Invalid empty mapper function.")
+
+        # Evaluate all instructions except the last (which is the return
+        # value); each intermediate result becomes a variable.
+        for instruction in instructions[:-1]:
+            payload = self._evaluate_instruction(instruction)
+
+            # The payload almost always contains a single stub; as an
+            # optimization, unwrap it and store the hook directly
+            # (map.ts:256-268 unwrapStubNoProperties).
+            hook = _unwrap_single_stub(payload)
+            if hook is not None:
+                self.variables.append(hook)
+            else:
+                self.variables.append(PayloadStubHook(payload))
+
+        # Evaluate the final instruction (the mapper's return value).
+        return self._evaluate_instruction(instructions[-1])
+
     def _evaluate_instruction(self, instruction: Any) -> RpcPayload:
-        """Evaluate a single instruction.
-        
-        Args:
-            instruction: The instruction to evaluate
-            
-        Returns:
-            The result payload
-        """
+        """Evaluate one instruction with the applicator as Importer."""
         from capnweb.parser import Parser
-        
-        # Create a parser that uses our variable lookup
+
         parser = Parser(importer=self)
         return parser.parse(instruction)
-    
-    def import_capability(self, import_id: int) -> "StubHook":
-        """Import a capability by ID (implements Importer protocol).
-        
-        For map applicator:
-        - Negative IDs (-1-based) refer to captures
-        - Non-negative IDs refer to variables (0 = input, 1+ = instruction results)
+
+    # -----------------------------------------------------------------------
+    # C-IMPORTER protocol (mapper index semantics, map.ts:279-298)
+    # -----------------------------------------------------------------------
+
+    def get_export(self, idx: int) -> "StubHook | None":
+        """Resolve a mapper-space index (map.ts:288-294).
+
+        Negative indices are captures; 0 and positive indices are variables
+        (0 = the input element). Out-of-range indices return None so the
+        evaluator raises the TS 'no such entry on exports table' error.
         """
-        if import_id < 0:
-            # Capture reference (-1 = captures[0], -2 = captures[1], etc.)
-            capture_idx = -import_id - 1
+        if idx < 0:
+            capture_idx = -idx - 1
             if capture_idx >= len(self.captures):
-                raise RpcError.bad_request(f"Invalid capture index: {capture_idx}")
-            return self.captures[capture_idx].dup()
-        else:
-            # Variable reference
-            if import_id >= len(self.variables):
-                raise RpcError.bad_request(f"Invalid variable index: {import_id}")
-            return self.variables[import_id].dup()
-    
+                return None
+            return self.captures[capture_idx]
+        if idx >= len(self.variables):
+            return None
+        return self.variables[idx]
+
+    def import_capability(self, import_id: int) -> "StubHook":
+        """HARD FAIL: ``["export", id]`` inside mapper instructions.
+
+        In session context an "export" tag means "the sender is exporting a
+        new capability"; inside a mapper it would alias the sender-chosen
+        index into OUR tables — a capability-confusion hazard. TS throws
+        (map.ts:279-283); so do we (matrix 04 row 15).
+        """
+        raise RpcError("Error", "A mapper function cannot refer to exports.")
+
     def create_promise_hook(self, promise_id: int) -> "StubHook":
-        """Create a promise hook (not supported in map)."""
-        raise RpcError.bad_request("Promises not supported in map functions")
+        """HARD FAIL: ``["promise", id]`` inside mapper instructions
+        (map.ts:284-286)."""
+        raise RpcError("Error", "A mapper function cannot refer to exports.")
+
+    def get_pipe_readable(self, export_id: int) -> Any:
+        """HARD FAIL: pipes cannot appear inside mapper instructions
+        (map.ts:296-298)."""
+        raise RpcError("Error", "A mapper function cannot use pipe readables.")
+
+
+def _unwrap_single_stub(payload: RpcPayload) -> "StubHook | None":
+    """Extract the hook when the payload IS a single stub/root promise.
+
+    Python port of ``unwrapStubNoProperties`` applied to instruction results
+    (map.ts:259-266). Property promises (pending path) are not unwrapped.
+    Ownership: the hook is taken from the payload, which is then dropped
+    WITHOUT disposal (it contains nothing else).
+    """
+    from capnweb.stubs import RpcPromise, RpcStub
+
+    value = payload.value
+    if isinstance(value, RpcStub):
+        return value._hook
+    if isinstance(value, RpcPromise) and not value._path:
+        return value._raw_hook
+    return None
 
 
 def apply_map_to_element(
@@ -136,24 +159,24 @@ def apply_map_to_element(
     captures: list["StubHook"],
     instructions: list[Any],
 ) -> RpcPayload:
-    """Apply map instructions to a single element.
-    
+    """Apply map instructions to a single element (map.ts:301-313).
+
     Args:
         input_value: The element to map over
         parent: Parent object (for RpcTarget handling)
         owner: Owner payload (for RpcTarget handling)
-        captures: External stubs used in the mapper
-        instructions: The mapper instructions
-        
+        captures: External stubs used in the mapper (borrowed)
+        instructions: The mapper instructions (raw JSON)
+
     Returns:
         The mapped result payload
     """
     from capnweb.hooks import PayloadStubHook
-    
+
     # Create a hook for the input
     input_payload = RpcPayload.deep_copy_from(input_value, parent, owner)
     input_hook = PayloadStubHook(input_payload)
-    
+
     # Apply the instructions
     applicator = MapApplicator(captures, input_hook)
     try:
@@ -164,59 +187,70 @@ def apply_map_to_element(
 
 def apply_map_locally(
     input_value: Any,
+    parent: object | None,
     owner: RpcPayload | None,
     captures: list["StubHook"],
     instructions: list[Any],
 ) -> "StubHook":
-    """Apply a map operation locally.
-    
-    This is used when the target is a local payload (not remote).
-    
+    """Apply a map operation to a local value (mapImpl.applyMap,
+    map.ts:315-351).
+
+    Semantics per element kind: an RpcPromise input is a caller bug; arrays
+    map per-element (disposing partial results on failure); null/None and
+    the Undefined sentinel pass through untouched; any other single value is
+    mapped once. Captures are ALWAYS disposed on the way out.
+
     Args:
         input_value: The value to map over (usually an array)
+        parent: The containing object, if any
         owner: The owner payload
-        captures: External stubs used in the mapper
-        instructions: The mapper instructions
-        
+        captures: External stubs used in the mapper (ownership taken)
+        instructions: The mapper instructions (raw JSON)
+
     Returns:
         A StubHook containing the mapped results
     """
-    from capnweb.hooks import PayloadStubHook, ErrorStubHook
-    from capnweb.stubs import RpcStub, RpcPromise
-    
+    from capnweb.hooks import PayloadStubHook
+    from capnweb.stubs import RpcPromise
+    from capnweb.types import Undefined
+
     try:
         if isinstance(input_value, RpcPromise):
-            raise RpcError.bad_request("Cannot map over an unresolved promise")
-        
+            # The caller is responsible for making sure the input is not a
+            # promise, since we can't know if it resolves to an array later.
+            raise RpcError("Error", "applyMap() can't be called on RpcPromise")
+
         if isinstance(input_value, list):
             # Map over array elements
             payloads: list[RpcPayload] = []
             try:
                 for elem in input_value:
-                    payload = apply_map_to_element(
-                        elem, input_value, owner, captures, instructions
+                    payloads.append(
+                        apply_map_to_element(
+                            elem, input_value, owner, captures, instructions
+                        )
                     )
-                    payloads.append(payload)
             except Exception:
                 # Dispose already-created payloads on error
                 for p in payloads:
                     p.dispose()
                 raise
-            
-            # Combine into array payload
+
+            # Combine into array payload; from_array re-parents element-root
+            # promises onto the combined array natively (payload.py).
             result = RpcPayload.from_array(payloads)
-        elif input_value is None:
-            # null/None passes through
+        elif input_value is None or input_value is Undefined:
+            # null/undefined pass through (map.ts:337-338)
             result = RpcPayload.from_app_return(input_value)
         else:
             # Single value - apply map to it
             result = apply_map_to_element(
-                input_value, None, owner, captures, instructions
+                input_value, parent, owner, captures, instructions
             )
-        
+
         return PayloadStubHook(result)
-        
+
     finally:
-        # Dispose captures
+        # Dispose captures (map.ts:346-350)
         for cap in captures:
             cap.dispose()

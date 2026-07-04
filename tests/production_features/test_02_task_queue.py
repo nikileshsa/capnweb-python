@@ -20,6 +20,7 @@ from typing import Any
 
 from capnweb import RpcTarget, RpcError
 from capnweb.ws_session import WebSocketRpcClient, WebSocketRpcServer
+from ..support import rpc_call
 
 
 # =============================================================================
@@ -194,11 +195,11 @@ class TestTaskQueue:
         try:
             url = f"ws://localhost:{port}/rpc"
             async with WebSocketRpcClient(url) as client:
-                result = await client.call(0, "submit_task", ["compute", {"numbers": [1, 2, 3, 4, 5]}])
+                result = await rpc_call(client, "submit_task", ["compute", {"numbers": [1, 2, 3, 4, 5]}])
                 assert result["status"] == "queued"
                 task_id = result["task_id"]
                 await asyncio.sleep(0.1)
-                final_result = await client.call(0, "get_result", [task_id])
+                final_result = await rpc_call(client, "get_result", [task_id])
                 assert final_result == 15
         finally:
             await server.stop()
@@ -213,14 +214,14 @@ class TestTaskQueue:
         try:
             url = f"ws://localhost:{port}/rpc"
             async with WebSocketRpcClient(url) as client:
-                stats = await client.call(0, "get_queue_stats", [])
+                stats = await rpc_call(client, "get_queue_stats", [])
                 assert stats["pending"] == 0
                 for i in range(5):
-                    await client.call(0, "submit_task", ["compute", {"numbers": [i]}])
-                stats = await client.call(0, "get_queue_stats", [])
+                    await rpc_call(client, "submit_task", ["compute", {"numbers": [i]}])
+                stats = await rpc_call(client, "get_queue_stats", [])
                 assert stats["total_submitted"] == 5
-                await client.call(0, "process_all", [])
-                stats = await client.call(0, "get_queue_stats", [])
+                await rpc_call(client, "process_all", [])
+                stats = await rpc_call(client, "get_queue_stats", [])
                 assert stats["completed"] == 5
         finally:
             await server.stop()
@@ -237,14 +238,14 @@ class TestTaskQueue:
             async with WebSocketRpcClient(url) as client:
                 task_ids = []
                 for i in range(3):
-                    result = await client.call(0, "submit_task", ["slow", {}])
+                    result = await rpc_call(client, "submit_task", ["slow", {}])
                     task_ids.append(result["task_id"])
                 await client.drain()
                 stats = client.get_stats()
                 assert stats is not None
-                await client.call(0, "process_all", [])
+                await rpc_call(client, "process_all", [])
                 for task_id in task_ids:
-                    status = await client.call(0, "get_task_status", [task_id])
+                    status = await rpc_call(client, "get_task_status", [task_id])
                     assert status["status"] == "completed"
         finally:
             await server.stop()
@@ -260,14 +261,14 @@ class TestTaskQueue:
             url = f"ws://localhost:{port}/rpc"
             async with WebSocketRpcClient(url) as client:
                 submit_tasks = [
-                    asyncio.create_task(client.call(0, "submit_task", ["compute", {"numbers": [i, i*2]}]))
+                    asyncio.create_task(rpc_call(client, "submit_task", ["compute", {"numbers": [i, i*2]}]))
                     for i in range(20)
                 ]
                 results = await asyncio.gather(*submit_tasks)
                 assert len(results) == 20
                 assert all(r["status"] == "queued" for r in results)
-                await client.call(0, "process_all", [])
-                stats = await client.call(0, "get_queue_stats", [])
+                await rpc_call(client, "process_all", [])
+                stats = await rpc_call(client, "get_queue_stats", [])
                 assert stats["completed"] == 20
         finally:
             await server.stop()
@@ -283,7 +284,7 @@ class TestTaskQueue:
             url = f"ws://localhost:{port}/rpc"
             async with WebSocketRpcClient(url) as client:
                 for i in range(5):
-                    await client.call(0, "submit_task", ["transform", {"text": f"message_{i}"}])
+                    await rpc_call(client, "submit_task", ["transform", {"text": f"message_{i}"}])
                 await client.drain()
                 await asyncio.sleep(0.3)  # Wait for server processing
             
@@ -303,12 +304,12 @@ class TestTaskQueue:
         try:
             url = f"ws://localhost:{port}/rpc"
             async with WebSocketRpcClient(url) as client:
-                result = await client.call(0, "submit_task", ["slow", {}])
+                result = await rpc_call(client, "submit_task", ["slow", {}])
                 task_id = result["task_id"]
-                status = await client.call(0, "get_task_status", [task_id])
+                status = await rpc_call(client, "get_task_status", [task_id])
                 assert status["status"] in ["pending", "processing"]
                 await asyncio.sleep(0.3)
-                status = await client.call(0, "get_task_status", [task_id])
+                status = await rpc_call(client, "get_task_status", [task_id])
                 assert status["status"] == "completed"
         finally:
             await server.stop()

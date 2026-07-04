@@ -20,6 +20,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 from .conftest import InteropClient, ServerProcess
+from ..support import rpc_call
 
 
 # =============================================================================
@@ -62,11 +63,11 @@ class TestCallbacks:
                 print("[DEBUG] Connected to server", flush=True)
                 stub = RpcStub(client._session.get_export(0).dup())
                 print("[DEBUG] Calling registerCallback...", flush=True)
-                await client.call(0, "registerCallback", [stub])
+                await rpc_call(client, "registerCallback", [stub])
                 print("[DEBUG] registerCallback done", flush=True)
                 
                 print("[DEBUG] Calling triggerCallback...", flush=True)
-                result = await client.call(0, "triggerCallback", [])
+                result = await rpc_call(client, "triggerCallback", [])
                 print(f"[DEBUG] triggerCallback result: {result}", flush=True)
                 
                 assert callback.calls == ["ping"]
@@ -98,9 +99,9 @@ class TestCallbacks:
             local_main=callback,
         ) as client:
             stub = RpcStub(client._session.get_export(0).dup())
-            await client.call(0, "registerCallback", [stub])
+            await rpc_call(client, "registerCallback", [stub])
             
-            result = await client.call(0, "triggerCallback", [])
+            result = await rpc_call(client, "triggerCallback", [])
             
             assert callback.calls == ["ping"]
             assert result == "received: ping"
@@ -130,12 +131,12 @@ class TestCallbacks:
             local_main=counter,
         ) as client:
             stub = RpcStub(client._session.get_export(0).dup())
-            await client.call(0, "registerCallback", [stub])
+            await rpc_call(client, "registerCallback", [stub])
             
             # Trigger multiple times
-            r1 = await client.call(0, "triggerCallback", [])
-            r2 = await client.call(0, "triggerCallback", [])
-            r3 = await client.call(0, "triggerCallback", [])
+            r1 = await rpc_call(client, "triggerCallback", [])
+            r2 = await rpc_call(client, "triggerCallback", [])
+            r3 = await rpc_call(client, "triggerCallback", [])
             
             assert counter.count == 3
             assert r1 == "call #1"
@@ -167,11 +168,11 @@ class TestCallbacks:
             local_main=counter,
         ) as client:
             stub = RpcStub(client._session.get_export(0).dup())
-            await client.call(0, "registerCallback", [stub])
+            await rpc_call(client, "registerCallback", [stub])
             
-            r1 = await client.call(0, "triggerCallback", [])
-            r2 = await client.call(0, "triggerCallback", [])
-            r3 = await client.call(0, "triggerCallback", [])
+            r1 = await rpc_call(client, "triggerCallback", [])
+            r2 = await rpc_call(client, "triggerCallback", [])
+            r3 = await rpc_call(client, "triggerCallback", [])
             
             assert counter.count == 3
 
@@ -294,7 +295,7 @@ class TestCapabilityChains:
             local_main=func,
         ) as client:
             stub = RpcStub(client._session.get_export(0).dup())
-            result = await client.call(0, "callFunction", [stub, 7])
+            result = await rpc_call(client, "callFunction", [stub, 7])
             
             assert result == {"result": 49}
     
@@ -319,7 +320,7 @@ class TestCapabilityChains:
             local_main=func,
         ) as client:
             stub = RpcStub(client._session.get_export(0).dup())
-            result = await client.call(0, "callFunction", [stub, 7])
+            result = await rpc_call(client, "callFunction", [stub, 7])
             
             assert result == {"result": 49}
 
@@ -357,14 +358,14 @@ class TestConcurrentBidirectional:
             local_main=callback,
         ) as client:
             stub = RpcStub(client._session.get_export(0).dup())
-            await client.call(0, "registerCallback", [stub])
+            await rpc_call(client, "registerCallback", [stub])
             
             # Make concurrent calls including callback triggers
             tasks = [
-                asyncio.create_task(client.call(0, "square", [i]))
+                asyncio.create_task(rpc_call(client, "square", [i]))
                 for i in range(5)
             ] + [
-                asyncio.create_task(client.call(0, "triggerCallback", []))
+                asyncio.create_task(rpc_call(client, "triggerCallback", []))
                 for _ in range(3)
             ]
             
@@ -400,13 +401,13 @@ class TestConcurrentBidirectional:
             local_main=callback,
         ) as client:
             stub = RpcStub(client._session.get_export(0).dup())
-            await client.call(0, "registerCallback", [stub])
+            await rpc_call(client, "registerCallback", [stub])
             
             tasks = [
-                asyncio.create_task(client.call(0, "square", [i]))
+                asyncio.create_task(rpc_call(client, "square", [i]))
                 for i in range(5)
             ] + [
-                asyncio.create_task(client.call(0, "triggerCallback", []))
+                asyncio.create_task(rpc_call(client, "triggerCallback", []))
                 for _ in range(3)
             ]
             
@@ -431,7 +432,7 @@ class TestSelfReference:
         async with WebSocketRpcClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             # Get a stub for the server's main capability
             # Then pass it back to the server to call
-            result = await client.call(0, "square", [5])
+            result = await rpc_call(client, "square", [5])
             assert result == 25
     
     async def test_call_self_py(self, py_server: ServerProcess):
@@ -439,5 +440,5 @@ class TestSelfReference:
         from capnweb.ws_session import WebSocketRpcClient
         
         async with WebSocketRpcClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
-            result = await client.call(0, "square", [5])
+            result = await rpc_call(client, "square", [5])
             assert result == 25

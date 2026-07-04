@@ -25,7 +25,6 @@ from hypothesis import given
 from hypothesis import strategies as st
 
 from capnweb.error import ErrorCode, RpcError
-from capnweb.ids import ExportId, IdAllocator, ImportId
 from capnweb.payload import PayloadSource, RpcPayload
 from capnweb.wire import (
     PropertyKey,
@@ -309,101 +308,6 @@ class TestWireSerializationProperties:
         assert isinstance(serialized, str)
 
 
-# Property tests for ID allocation
-
-
-class TestIdAllocationProperties:
-    """Property-based tests for ID allocation."""
-
-    def test_import_ids_are_sequential_and_positive(self) -> None:
-        """Local import IDs should be sequential positive integers."""
-        allocator = IdAllocator()
-        ids = [allocator.allocate_import() for _ in range(100)]
-
-        # All should be positive
-        assert all(id.value > 0 for id in ids)
-
-        # All should be unique
-        assert len({id.value for id in ids}) == 100
-
-        # Should be sequential starting from 1
-        assert [id.value for id in ids] == list(range(1, 101))
-
-    def test_export_ids_are_sequential_and_negative(self) -> None:
-        """Local export IDs should be sequential negative integers."""
-        allocator = IdAllocator()
-        ids = [allocator.allocate_export() for _ in range(100)]
-
-        # All should be negative
-        assert all(id.value < 0 for id in ids)
-
-        # All should be unique
-        assert len({id.value for id in ids}) == 100
-
-        # Should be sequential starting from -1
-        assert [id.value for id in ids] == list(range(-1, -101, -1))
-
-    @given(st.integers(min_value=-10000, max_value=10000))
-    def test_import_export_conversion_is_bijective(self, value: int) -> None:
-        """ImportId ↔ ExportId conversion should be bijective."""
-        import_id = ImportId(value)
-        export_id = import_id.to_export_id()
-        roundtrip = export_id.to_import_id()
-
-        assert roundtrip.value == import_id.value
-
-    @given(st.integers(min_value=-10000, max_value=10000))
-    def test_export_import_conversion_is_bijective(self, value: int) -> None:
-        """ExportId ↔ ImportId conversion should be bijective."""
-        export_id = ExportId(value)
-        import_id = export_id.to_import_id()
-        roundtrip = import_id.to_export_id()
-
-        assert roundtrip.value == export_id.value
-
-    @given(st.integers(min_value=1, max_value=10000))
-    def test_positive_import_is_local(self, value: int) -> None:
-        """Positive import IDs should be marked as local."""
-        import_id = ImportId(value)
-        assert import_id.is_local()
-        assert not import_id.is_remote()
-        assert not import_id.is_main()
-
-    @given(st.integers(min_value=-10000, max_value=-1))
-    def test_negative_import_is_remote(self, value: int) -> None:
-        """Negative import IDs should be marked as remote."""
-        import_id = ImportId(value)
-        assert import_id.is_remote()
-        assert not import_id.is_local()
-        assert not import_id.is_main()
-
-    @given(st.integers(min_value=-10000, max_value=-1))
-    def test_negative_export_is_local(self, value: int) -> None:
-        """Negative export IDs should be marked as local."""
-        export_id = ExportId(value)
-        assert export_id.is_local()
-        assert not export_id.is_remote()
-        assert not export_id.is_main()
-
-    @given(st.integers(min_value=1, max_value=10000))
-    def test_positive_export_is_remote(self, value: int) -> None:
-        """Positive export IDs should be marked as remote."""
-        export_id = ExportId(value)
-        assert export_id.is_remote()
-        assert not export_id.is_local()
-        assert not export_id.is_main()
-
-    def test_main_id_is_zero(self) -> None:
-        """Main IDs should be zero."""
-        import_id = ImportId.main()
-        export_id = ExportId.main()
-
-        assert import_id.value == 0
-        assert export_id.value == 0
-        assert import_id.is_main()
-        assert export_id.is_main()
-
-
 # Property tests for expression evaluation
 
 
@@ -449,20 +353,6 @@ class TestExpressionProperties:
         assert json_repr[0] == "error"
         assert json_repr[1] == error_type
         assert json_repr[2] == message
-
-    @given(st.integers(min_value=-10000, max_value=10000))
-    def test_import_export_are_inverses(self, value: int) -> None:
-        """Import and export IDs are negatives of each other."""
-        import_id = ImportId(value)
-        export_id = import_id.to_export_id()
-
-        assert export_id.value == -import_id.value
-
-        # And the reverse
-        export_id2 = ExportId(value)
-        import_id2 = export_id2.to_import_id()
-
-        assert import_id2.value == -export_id2.value
 
 
 # Fuzz testing for error paths
@@ -764,8 +654,9 @@ class TestRpcErrorProperties:
     )
     def test_error_data_is_preserved(self, message: str, data: dict[str, Any]) -> None:
         """Custom error data should be preserved."""
-        error = RpcError(ErrorCode.INTERNAL, message, data=data)
-        assert error.data == data
+        error = RpcError(ErrorCode.INTERNAL, message, properties=data)
+        assert error.properties == data
+        assert error.data == (data or None)
 
     @given(
         st.sampled_from(list(ErrorCode)),

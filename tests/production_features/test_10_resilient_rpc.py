@@ -15,6 +15,7 @@ from typing import Any
 
 from capnweb import RpcTarget, RpcError
 from capnweb.ws_session import WebSocketRpcClient, WebSocketRpcServer
+from ..support import rpc_call
 
 
 @dataclass
@@ -133,10 +134,10 @@ class TestResilientRpc:
             callback = ClientCallback()
             url = f"ws://localhost:{port}/rpc"
             async with WebSocketRpcClient(url, local_main=callback) as client:
-                result = await client.call(0, "register_connection", ["conn1", callback])
+                result = await rpc_call(client, "register_connection", ["conn1", callback])
                 assert result["status"] == "registered"
                 for i in range(5):
-                    result = await client.call(0, "heartbeat", ["conn1"])
+                    result = await rpc_call(client, "heartbeat", ["conn1"])
                     assert result["heartbeats"] == i + 1
         finally:
             await server.stop()
@@ -152,8 +153,8 @@ class TestResilientRpc:
             callback = ClientCallback()
             url = f"ws://localhost:{port}/rpc"
             async with WebSocketRpcClient(url, local_main=callback) as client:
-                await client.call(0, "register_connection", ["conn1", callback])
-                result = await client.call(0, "process", ["conn1", {"value": 42}])
+                await rpc_call(client, "register_connection", ["conn1", callback])
+                result = await rpc_call(client, "process", ["conn1", {"value": 42}])
                 assert result["status"] == "processed"
                 await asyncio.sleep(0.1)
                 assert len(callback.processed_data) == 1
@@ -173,9 +174,9 @@ class TestResilientRpc:
             callback.should_fail = True
             url = f"ws://localhost:{port}/rpc"
             async with WebSocketRpcClient(url, local_main=callback) as client:
-                await client.call(0, "register_connection", ["fail_conn", callback])
-                await client.call(0, "process", ["fail_conn", {"data": "test"}])
-                status = await client.call(0, "get_connection_status", ["fail_conn"])
+                await rpc_call(client, "register_connection", ["fail_conn", callback])
+                await rpc_call(client, "process", ["fail_conn", {"data": "test"}])
+                status = await rpc_call(client, "get_connection_status", ["fail_conn"])
                 assert status["status"] == "broken"
         finally:
             await server.stop()
@@ -192,10 +193,10 @@ class TestResilientRpc:
             callback.should_fail = True
             url = f"ws://localhost:{port}/rpc"
             async with WebSocketRpcClient(url, local_main=callback) as client:
-                await client.call(0, "register_connection", ["stats_conn", callback])
+                await rpc_call(client, "register_connection", ["stats_conn", callback])
                 for i in range(3):
-                    await client.call(0, "process", ["stats_conn", {"i": i}])
-                stats = await client.call(0, "get_stats", [])
+                    await rpc_call(client, "process", ["stats_conn", {"i": i}])
+                stats = await rpc_call(client, "get_stats", [])
                 assert stats["failed_requests"] >= 3
                 assert stats["broken_connections"] >= 1
         finally:
@@ -214,22 +215,22 @@ class TestResilientRpc:
             
             # Use nested context managers for multiple clients
             async with WebSocketRpcClient(url, local_main=callbacks[0]) as client0:
-                await client0.call(0, "register_connection", ["conn0", callbacks[0]])
+                await rpc_call(client0, "register_connection", ["conn0", callbacks[0]])
                 
                 async with WebSocketRpcClient(url, local_main=callbacks[1]) as client1:
-                    await client1.call(0, "register_connection", ["conn1", callbacks[1]])
+                    await rpc_call(client1, "register_connection", ["conn1", callbacks[1]])
                     
                     async with WebSocketRpcClient(url, local_main=callbacks[2]) as client2:
-                        await client2.call(0, "register_connection", ["conn2", callbacks[2]])
+                        await rpc_call(client2, "register_connection", ["conn2", callbacks[2]])
                         
-                        stats = await client0.call(0, "get_stats", [])
+                        stats = await rpc_call(client0, "get_stats", [])
                         assert stats["active_connections"] == 3
                         
                         callbacks[1].should_fail = True
-                        await client1.call(0, "process", ["conn1", {}])
+                        await rpc_call(client1, "process", ["conn1", {}])
                         await asyncio.sleep(0.1)
                         
-                        stats = await client0.call(0, "get_stats", [])
+                        stats = await rpc_call(client0, "get_stats", [])
                         assert stats["active_connections"] == 2
                         assert stats["broken_connections"] == 1
         finally:
@@ -249,10 +250,10 @@ class TestResilientRpc:
             url = f"ws://localhost:{port}/rpc"
             async with WebSocketRpcClient(url, local_main=good_callback) as good_client:
                 async with WebSocketRpcClient(url, local_main=bad_callback) as bad_client:
-                    await good_client.call(0, "register_connection", ["good", good_callback])
-                    await bad_client.call(0, "register_connection", ["bad", bad_callback])
-                    await bad_client.call(0, "process", ["bad", {}])
-                    result = await good_client.call(0, "process", ["good", {"ok": True}])
+                    await rpc_call(good_client, "register_connection", ["good", good_callback])
+                    await rpc_call(bad_client, "register_connection", ["bad", bad_callback])
+                    await rpc_call(bad_client, "process", ["bad", {}])
+                    result = await rpc_call(good_client, "process", ["good", {"ok": True}])
                     assert result["status"] == "processed"
                     await asyncio.sleep(0.1)
                     assert len(good_callback.processed_data) == 1

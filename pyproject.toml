@@ -29,6 +29,10 @@ dependencies = [
     "cryptography>=46.0.2",
     "aioquic>=1.2.0",
     "pydantic>=2.0.0",
+    # orjson (Rust/SIMD) accelerates the JSON wire codec on the hot
+    # serialize/parse path and is required for the production performance
+    # envelope.
+    "orjson>=3.11.0",
 ]
 
 [project.urls]
@@ -38,23 +42,10 @@ Repository = "https://github.com/abilian/py-capnweb.git"
 Issues = "https://github.com/abilian/py-capnweb/issues"
 Changelog = "https://github.com/abilian/py-capnweb/blob/main/CHANGES.md"
 
+# The fork's original dev dependency-group was removed to avoid resolution
+# conflicts when consumed as a uv workspace member; the consuming workspace's
+# dev group governs tooling. See PARITY.md for protocol parity status.
 [dependency-groups]
-dev = [
-    "honcho>=2.0.0",
-    "hypothesis>=6.100.0",
-    "nox>=2025.5.1",
-    "pre-commit>=4.3.0",
-    "pyrefly>=0.35.0",
-    "pytest-asyncio>=1.2.0",
-    "pytest>=8.4.2",
-    "pytest-cov>=7.0.0",
-    "pyupgrade>=3.20.0",
-    "ruff>=0.13.2",
-    "tox>=4.30.2",
-    "ty>=0.0.1a21",
-    "uv-build>=0.8.22",
-    "vulture>=2.14",
-]
 interop = [
     "httpx>=0.25.0",
 ]
@@ -77,15 +68,19 @@ module-root = "src"
 #
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Collect the security fuzzer (tests/security/fuzz_wire.py) alongside the
+# default test_*.py / *_test.py patterns so CI directory sweeps run it.
+python_files = ["test_*.py", "*_test.py", "fuzz_*.py"]
 asyncio_mode = "auto"
+# Silence the pytest-asyncio deprecation warning and pin the final behavior
+# explicitly: async fixtures share the test-function event loop.
+asyncio_default_fixture_loop_scope = "function"
 addopts = [
     "--strict-markers",
-    "--strict-config",
-    "--cov=capnweb",
-    "--cov-report=term-missing:skip-covered",
 ]
 markers = [
     "asyncio: mark test as an asyncio test",
+    "slow: long-running soak tests (e.g. 32 MiB stream flow-control soak)",
 ]
 
 #

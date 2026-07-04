@@ -8,7 +8,6 @@ from capnweb.wire import (
     WireCapture,
     WireError,
     WireImport,
-    WirePipeline,
     WireRelease,
     WireRemap,
     parse_wire_message,
@@ -61,7 +60,8 @@ class TestWireRemap:
             instructions=[42],
         )
         result = remap.to_json()
-        assert result == ["remap", 1, None, [], [42]]
+        # B2: propertyPath is ALWAYS an array on the wire (TS rejects null).
+        assert result == ["remap", 1, [], [], [42]]
 
     def test_wire_remap_with_captures(self):
         """Test WireRemap with captures."""
@@ -69,18 +69,18 @@ class TestWireRemap:
             WireCapture("import", 1),
             WireCapture("export", -2),
         ]
-        # Instructions should be WireImport objects, not raw lists
+        # B2: instructions are RAW JSON end-to-end (matrix 04 row 13).
         remap = WireRemap(
             import_id=5,
             property_path=None,
             captures=captures,
-            instructions=[WireImport(-1), WireImport(-2)],
+            instructions=[["import", -1], ["import", -2]],
         )
         result = remap.to_json()
         assert result == [
             "remap",
             5,
-            None,
+            [],
             [["import", 1], ["export", -2]],
             [["import", -1], ["import", -2]],
         ]
@@ -112,7 +112,8 @@ class TestWireRemap:
         parsed = WireRemap.from_json(json_data)
 
         assert parsed.import_id == original.import_id
-        assert parsed.property_path == original.property_path
+        # to_json normalizes a None path to [] (TS rejects null paths).
+        assert parsed.property_path == []
         assert len(parsed.captures) == len(original.captures)
         assert parsed.captures[0].type == original.captures[0].type
         assert parsed.captures[0].id == original.captures[0].id
@@ -130,7 +131,7 @@ class TestEscapedArrays:
         """
         # An escaped array [[...]] is left as-is by wire_expression_from_json
         escaped = [["error", "not really an error"]]
-        
+
         # wire_expression_from_json does NOT unwrap - that's Parser's job
         parsed = wire_expression_from_json(escaped)
         assert parsed == [["error", "not really an error"]]
@@ -161,7 +162,7 @@ class TestEscapedArrays:
         parsed = wire_expression_from_json(escaped)
         assert parsed == [["import", 123, "foo"]]
         assert isinstance(parsed, list)
-        
+
         # Serialize back - wire_expression_to_json doesn't escape
         serialized = wire_expression_to_json(parsed)
         assert serialized == [["import", 123, "foo"]]
@@ -221,7 +222,7 @@ class TestIntegration:
                 import_id=2,
                 property_path=None,
                 captures=[WireCapture("import", 1)],
-                instructions=[WirePipeline(-1, None, None)],
+                instructions=[["pipeline", -1]],
             ),
         }
 
@@ -236,8 +237,11 @@ class TestIntegration:
         result = wire_expression_from_json(reparsed)
 
         assert isinstance(result, dict)
-        # Capability expressions are left as plain lists
+        # P1 (perf): wire_expression_from_json classifies only the ROOT of an
+        # expression; container interiors stay raw JSON for the Parser, which
+        # materializes nested special forms itself (parser.py _parse_tagged).
+        # So a NESTED remap/import/export/promise all stay plain lists here —
+        # only a root-level tagged form becomes a wire dataclass.
         assert result["user"] == ["import", 1]
         assert result["action"] == "update"
-        assert isinstance(result["mapper"], WireRemap)
-        assert result["mapper"].import_id == 2
+        assert result["mapper"] == ["remap", 2, [], [["import", 1]], [["pipeline", -1]]]

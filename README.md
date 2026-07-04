@@ -19,10 +19,14 @@ A complete Python implementation of the [Cap'n Web protocol](https://github.com/
 - **Bidirectional RPC** - Full peer-to-peer capability passing
 - **100% Interoperable** - Fully compatible with TypeScript reference implementation
 
-**Beta Status:**
-- 744 tests passing, 70% coverage
-- Clean hook-based architecture
-- Full protocol compliance
+**Status:**
+- Full wire parity with the TypeScript reference at **v0.9.0** (all 8
+  message types incl. `stream`/`pipe`, flow control, Blob/Headers/Request/
+  Response, encoding levels, wire-faithful errors, `.map()` both directions)
+- 1000+ tests: unit + golden-wire conformance fixtures generated from the TS
+  `serialize()`/`deserialize()` + a FULL live interop suite against the real
+  TS server + hypothesis property tests
+- Clean hook-based architecture (same shape as the TS runtime)
 
 ## Why Use Cap'n Web?
 
@@ -105,6 +109,90 @@ balance = await account.getBalance()  # Pythonic API!
 await account.deposit(500.0)
 ```
 
+## TypeScript ↔ Python API mapping
+
+The upstream TypeScript runtime (`cloudflare/capnweb`) is the canonical
+implementation; this table maps its public surface to the Python spelling.
+
+| TypeScript (capnweb) | Python (this package) | Notes |
+|---|---|---|
+| `newWebSocketRpcSession(wsOrUrl, localMain?, opts?)` | `await new_websocket_rpc_session(ws_or_url, local_main, options)` | Async (connecting is awaitable in asyncio). Accepts a URL or an open aiohttp WebSocket. Returns the peer's main `RpcStub`. |
+| `newHttpBatchRpcSession(urlOrRequest, opts?)` | `await new_http_batch_rpc_session(url, headers=..., options=...)` | `headers=` replaces passing a `Request` (auth headers). One batch per session. |
+| `newHttpBatchRpcResponse(request, localMain, opts?)` | `await new_http_batch_rpc_response(body_str, local_main, options)` | Framework-neutral: body-string in/out. Raises instead of truncating on timeout. |
+| `nodeHttpBatchRpcResponse(req, res, main, opts & {headers})` | `aiohttp_batch_rpc_handler(request, local_main, headers=...)` / `fastapi_batch_rpc_handler` | Standalone batch endpoints. Do NOT set CORS headers. |
+| `newWorkersRpcResponse(request, localMain)` | `aiohttp_rpc_handler(request, local_main, options)` | Unified endpoint: POST → batch, WS upgrade → WebSocket, else 400. The ONLY place that sets `Access-Control-Allow-Origin: *` — read its security warning. |
+| `newWorkersWebSocketRpcResponse(...)` | `handle_websocket_rpc(request, local_main, options)` | aiohttp server handler. |
+| `newMessagePortRpcSession(port, localMain?)` | `new_pipe_rpc_session_pair(main_a, main_b, encoding_level=...)` | In-process queue-pair sessions (MessagePort analog; `None` close sentinel). Python has no structured clone, so the levels are `"string"` (default) / `"jsonCompatible"` / `"jsonCompatibleWithBytes"`. |
+| `RpcTransportWithCustomEncoding` (`encodingLevel`) | transport attribute `encoding_level` | `"jsonCompatible"`/`"jsonCompatibleWithBytes"` skip the JSON stringify/parse; unknown levels raise `TypeError` at session construction; `"structuredClonable"` raises `NotImplementedError` (JS-host feature). |
+| `new RpcSession(transport, localMain?, opts?)` | `RpcSession(transport, local_main, options)` (alias of `BidirectionalSession`) | Python deviation: call `session.start()` explicitly; `async with`-style lifecycle via `stop()`. |
+| `session.getRemoteMain()` | `get_remote_main(session)` | Returns `RpcStub`. (`session.get_main_stub()` returns the raw hook.) |
+| `session.getStats()` / `session.drain()` | `session.get_stats()` / `await session.drain()` | |
+| `new RpcStub(value)` | `RpcStub(value)` | Polymorphic: hook, `RpcTarget`, callable, or plain value. |
+| `stub.dup()` | `stub.dup()` | On a promise, `dup()` returns a plain `RpcStub` (stub-ifies), like TS. |
+| `stub.onRpcBroken(cb)` | `stub.on_rpc_broken(cb)` | On stubs and promises. |
+| `stub[Symbol.dispose]()` / `using stub = ...` | `stub.dispose()` / `with stub:` (or `async with stub:`) | See disposal idiom below. |
+| `RpcTarget` + `[Symbol.dispose]` | `RpcTarget` + `def dispose(self)` | Called when the last dup of the last stub is disposed. |
+| `RpcTransport` interface | `RpcTransport` Protocol (exported from `capnweb`) | `send`/`receive` async; `abort(reason)`. |
+| `WebSocketTransport` | `WebSocketTransport` (`capnweb.ws_transport`) | Wraps an open aiohttp WS (client or server side). Abort closes with code 3000 + reason. |
+| `RpcSessionOptions = { onSendError? }` | `RpcSessionConfig(on_send_error=...)` | Python-only extensions: `pull_timeout` (default 120s bound on promise pulls), `drain_timeout` (default 30s batch-server bound), `heartbeat=` kwargs on WS client/server (aiohttp ping keepalive). |
+
+### `RpcSessionConfig` security limits (Python-only hardening)
+
+Local-policy bounds enforced against an untrusted peer — the wire format is
+unchanged; a peer that breaches a bound is aborted. Defaults sit well above
+legitimate traffic (interop stays 459/0); tune per deployment.
+
+| Field | Default | Closes | Effect on breach |
+|-------|---------|--------|------------------|
+| `max_exports` | `100_000` | F1 | Abort — export table (peer pushes) capped at N live entries |
+| `max_imports` | `100_000` | F2 | Abort — import table (referenced caps) capped at N live entries |
+| `max_message_bytes` | `16 MiB` | F3 | Abort — single inbound frame rejected before parse |
+| `max_array_len` | `1_000_000` | F5 | Abort — decoded wire array wider than N rejected |
+| `max_blob_bytes` | `64 MiB` | F4 | Error — streamed blob exceeding N bytes rejected |
+| `redact_internal_errors` | `True` | F6 | Unexpected (non-`RpcError`) exception text replaced with `"internal error"` on the wire; type/name kept. Deliberate `RpcError` messages pass; `on_send_error` still takes precedence. |
+
+Python-only additions (no TS equivalent, kept deliberately):
+`WebSocketRpcClient` / `WebSocketRpcServer` (lifecycle-managed pair;
+`local_main_factory=` gives each connection its own main capability),
+`UnifiedClient` (explicit `transport=` selection: `"auto" | "websocket" |
+"http-batch" | "webtransport"` — WebTransport is never inferred from the URL),
+`wait_closed(session)` (event-driven session-lifetime wait for server
+handlers).
+
+Removed (Phase C): the positional `client.call(cap_id, method, args)` API on
+`WebSocketRpcClient` / `UnifiedClient`. TS has no such API — the stub IS the
+API. Use `get_main_stub()` and call methods on the stub; in HTTP-batch mode
+use `UnifiedClient.new_batch()` (or `new_http_batch_rpc_session`).
+
+## Disposal & resource management (the Python idiom)
+
+Cap'n Web capabilities are resources: a stub holds a table entry on the peer
+until it is disposed. TS uses `using` / `Symbol.dispose`; Python spells the
+same model as follows — **never rely on `__del__`/GC**:
+
+1. **`stub.dispose()`** is `stub[Symbol.dispose]()`. Disposing the **main**
+   stub (the one returned by `new_websocket_rpc_session` /
+   `get_remote_main`) shuts the whole session down.
+2. **`with stub:`** (or `async with stub:`) is `using stub = ...` — disposal
+   is synchronous, so the sync form is the closest analog.
+3. **`async with promise as value:`** awaits the promise, then disposes it —
+   Python-only sugar. (TS `using` disposes *without* awaiting; deliberate
+   difference.)
+4. **`stub.dup()`** escapes scope-bound disposal: the underlying capability
+   lives until *all* duplicates are disposed (hooks refcount). `dup()` on a
+   promise returns an immediately usable `RpcStub`.
+5. **`stub.on_rpc_broken(cb)`** notifies you when the backing session dies —
+   pair it with `pull_timeout` for robust hang-free clients.
+6. **Server side:** give your `RpcTarget` a `def dispose(self)` — it runs
+   when the last client reference is released.
+7. **Sessions:** `async with WebSocketRpcClient(...)` /
+   `await session.stop()` is the canonical lifecycle; session end implicitly
+   disposes everything it holds.
+8. **Batch sessions** are one-shot: all calls are batched until the first
+   result is awaited, which sends the single HTTP request; calls issued
+   after that fail with `BatchEndError`. Use a fresh
+   `new_http_batch_rpc_session()` per batch.
+
 ## Current Status
 
 **Transports:**
@@ -112,25 +200,29 @@ await account.deposit(500.0)
 - ✅ WebSocket (full bidirectional RPC with capability passing)
 - ✅ WebTransport/HTTP/3 (requires aioquic)
 
-**Protocol Features:**
-- ✅ Wire protocol (all message types)
-- ✅ Promise pipelining
-- ✅ Expression evaluation (including `.map()`)
-- ✅ Bidirectional RPC (full capability passing)
-- ✅ Reference counting & disposal
-- ✅ Structured errors with proper code propagation
-- ✅ ValueCodec & CapabilityCodec architecture
+**Protocol Features (v0.9.0 parity):**
+- ✅ Wire protocol — all 8 message types (`push`/`pull`/`resolve`/`reject`/`release`/`abort`/`stream`/`pipe`)
+- ✅ Promise pipelining with lazy path accumulation (one fused pipeline per chain)
+- ✅ `.map()`/remap both directions (recorder + applicator, TS mapper-index semantics)
+- ✅ Streams + BBR-style flow control (numerically identical to `streams.ts`)
+- ✅ Blob / Headers / Request / Response, `Undefined`/`InvalidDate` sentinels
+- ✅ Bidirectional RPC (full capability passing), reference counting & disposal
+- ✅ Wire-faithful structured errors (name/message/stack/properties/cause, AggregateError)
+- ✅ Transport encoding levels (`string` / `jsonCompatible` / `jsonCompatibleWithBytes`)
+- ✅ One codec stack (Serializer/Parser) shared by sessions and the standalone `serialize`/`deserialize` helpers
 
-**Code Quality:**
-- ✅ 744 tests passing (100% success rate)
-- ✅ 70% test coverage
+**Conformance:**
+- ✅ Golden-wire fixtures generated from the TS reference (byte-parity oracle)
+- ✅ FULL live interop suite vs the real TS 0.9 server (incl. adversarial cases)
+- ✅ Hypothesis property tests
 
 ## Documentation
 
 - **[Quickstart Guide](docs/quickstart.md)** - Get started in 5 minutes
-- **[API Reference](docs/api-reference.md)** - Complete API documentation
 - **[Architecture Guide](docs/architecture.md)** - Understand the internals
+- **[Wire Format](docs/WIRE_FORMAT.md)** - Wire-format parsing algorithm
 - **[Examples](examples/)** - Working code examples
+- **[PARITY.md](PARITY.md)** - Parity status vs the TypeScript reference
 
 ## Examples
 

@@ -15,6 +15,7 @@ from typing import Any
 
 from capnweb import RpcTarget, RpcError
 from capnweb.ws_session import WebSocketRpcClient, WebSocketRpcServer
+from ..support import rpc_call
 
 
 @dataclass
@@ -108,10 +109,10 @@ class TestDistributedCache:
         try:
             url = f"ws://localhost:{port}/rpc"
             async with WebSocketRpcClient(url) as client:
-                result = await client.call(0, "put", ["key1", {"data": "value1"}])
+                result = await rpc_call(client, "put", ["key1", {"data": "value1"}])
                 assert result["key"] == "key1"
                 
-                result = await client.call(0, "get", ["key1"])
+                result = await rpc_call(client, "get", ["key1"])
                 assert result["value"]["data"] == "value1"
         finally:
             await server.stop()
@@ -126,10 +127,10 @@ class TestDistributedCache:
         try:
             url = f"ws://localhost:{port}/rpc"
             async with WebSocketRpcClient(url) as client:
-                await client.call(0, "put", ["key1", "value1"])
-                result = await client.call(0, "acquire", ["key1"])
+                await rpc_call(client, "put", ["key1", "value1"])
+                result = await rpc_call(client, "acquire", ["key1"])
                 assert result["refs"] == 2
-                result = await client.call(0, "acquire", ["key1"])
+                result = await rpc_call(client, "acquire", ["key1"])
                 assert result["refs"] == 3
         finally:
             await server.stop()
@@ -144,10 +145,10 @@ class TestDistributedCache:
         try:
             url = f"ws://localhost:{port}/rpc"
             async with WebSocketRpcClient(url) as client:
-                await client.call(0, "put", ["key1", "value1"])
-                result = await client.call(0, "release", ["key1"])
+                await rpc_call(client, "put", ["key1", "value1"])
+                result = await rpc_call(client, "release", ["key1"])
                 assert result["evicted"] == True
-                stats = await client.call(0, "get_stats", [])
+                stats = await rpc_call(client, "get_stats", [])
                 assert stats["entries"] == 0
         finally:
             await server.stop()
@@ -162,15 +163,15 @@ class TestDistributedCache:
         try:
             url = f"ws://localhost:{port}/rpc"
             async with WebSocketRpcClient(url) as client:
-                await client.call(0, "put", ["key1", "value1"])
-                await client.call(0, "put", ["key2", "value2"])
-                await client.call(0, "get", ["key1"])
-                await client.call(0, "get", ["key2"])
+                await rpc_call(client, "put", ["key1", "value1"])
+                await rpc_call(client, "put", ["key2", "value2"])
+                await rpc_call(client, "get", ["key1"])
+                await rpc_call(client, "get", ["key2"])
                 try:
-                    await client.call(0, "get", ["nonexistent"])
+                    await rpc_call(client, "get", ["nonexistent"])
                 except Exception:
                     pass
-                stats = await client.call(0, "get_stats", [])
+                stats = await rpc_call(client, "get_stats", [])
                 assert stats["entries"] == 2
                 assert stats["hits"] == 2
                 assert stats["misses"] == 1
@@ -188,11 +189,11 @@ class TestDistributedCache:
             url = f"ws://localhost:{port}/rpc"
             async with WebSocketRpcClient(url) as client:
                 tasks = [
-                    asyncio.create_task(client.call(0, "put", [f"key{i}", f"value{i}"]))
+                    asyncio.create_task(rpc_call(client, "put", [f"key{i}", f"value{i}"]))
                     for i in range(10)
                 ]
                 await asyncio.gather(*tasks)
-                stats = await client.call(0, "get_stats", [])
+                stats = await rpc_call(client, "get_stats", [])
                 assert stats["entries"] == 10
         finally:
             await server.stop()

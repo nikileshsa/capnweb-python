@@ -9,7 +9,7 @@ Instead of a monolithic evaluator, different hook types handle different scenari
 - TargetStubHook: Wraps a local RpcTarget object
 - PromiseStubHook: Wraps a future that will resolve to another hook
 
-Note: Remote capability handling (ImportHook, PipelineHook) is in rpc_session.py.
+Note: Remote capability handling (ImportHook) is in rpc_session.py.
 """
 
 from __future__ import annotations
@@ -30,17 +30,83 @@ if TYPE_CHECKING:
 
 async def invoke_callable(target: Any, args: list[Any]) -> Any:
     """Invoke a callable (sync or async) with arguments.
-    
+
     Args:
         target: The callable to invoke
         args: Arguments to pass (as a list)
-        
+
     Returns:
         The result of the call
     """
     if inspect.iscoroutinefunction(target):
         return await target(*args)
     return target(*args)
+
+
+@dataclass
+class FollowPathResult:
+    """Result of :func:`follow_path` (TS FollowPathResult, core.ts:1478-1485).
+
+    Exactly one of two shapes:
+    * ``hook`` is set: the walk hit an embedded stub/promise; the caller must
+      delegate the operation to ``hook`` with ``remaining_path``.
+    * ``hook`` is None: the walk ended on a plain ``value`` (with its
+      ``parent`` container and owning payload, when known).
+    """
+
+    hook: "StubHook | None" = None
+    remaining_path: list[Any] | None = None
+    value: Any = None
+    parent: Any = None
+    owner: Any = None
+
+
+def follow_path(
+    value: Any, parent: Any, path: list[str | int], owner: Any
+) -> FollowPathResult:
+    """Walk a property path through a plain value tree (core.ts:1487-1560).
+
+    Delegates to embedded stub/promise hooks MID-PATH: if a path element
+    lands on an ``RpcStub``/``RpcPromise``, the walk stops and returns the
+    underlying hook plus the not-yet-consumed remainder of the path (with a
+    promise's own pending path prepended, like TS ``pathIfPromise.concat``).
+
+    Security: dangerous keys (Python dunders + JS Object.prototype names)
+    resolve to None instead of being looked up, mirroring the TS
+    ``part in Object.prototype`` guard.
+    """
+    from capnweb.parser import DANGEROUS_KEYS
+    from capnweb.stubs import RpcPromise, RpcStub
+
+    for i, part in enumerate(path):
+        # Delegate to an embedded capability before consuming `part`.
+        if isinstance(value, RpcStub):
+            return FollowPathResult(
+                hook=value._hook, remaining_path=list(path[i:])
+            )
+        if isinstance(value, RpcPromise):
+            return FollowPathResult(
+                hook=value._raw_hook,
+                remaining_path=[*value._path, *path[i:]],
+            )
+
+        parent = value
+        if isinstance(part, str) and part in DANGEROUS_KEYS:
+            # Don't allow probing dangerous properties over RPC
+            # (core.ts:1493-1502).
+            value = None
+        elif isinstance(part, int) and not isinstance(part, bool):
+            value = value[part]  # sequence index (IndexError/TypeError raise)
+        elif isinstance(value, dict):
+            value = value[part]  # KeyError raises
+        else:
+            value = getattr(value, part)
+
+    # Path fully consumed. A final stub/promise is returned as a VALUE (not
+    # delegated): TS's followPath loop also only delegates mid-path — a
+    # trailing stub is deep-copied by get(), applied to by map(), and made
+    # callable by the proxy for call() (each operation decides).
+    return FollowPathResult(value=value, parent=parent, owner=owner)
 
 
 class StubHook(ABC):
@@ -156,6 +222,28 @@ class StubHook(ABC):
         """
         pass
 
+    def stream(
+        self, path: list[str | int], args: RpcPayload
+    ) -> tuple[Any, int | None]:
+        """Dispatch a streaming call (C-STREAM; core.ts:216-231 default).
+
+        Default: delegate to ``call()`` + ``pull()`` and return
+        ``size=None``, which tells the caller this is a local call and
+        writes must be serialized (awaited one at a time). Hooks backed by
+        the wire (ImportHook, WritableStreamHook) override this to send a
+        ``stream`` message and report the frame size for flow control.
+
+        Returns:
+            (awaitable completing when the write is delivered, size or None)
+        """
+        result_hook = self.call(path, args)
+
+        async def run() -> None:
+            payload = await result_hook.pull()
+            payload.dispose()
+
+        return run(), None
+
 
 @dataclass
 class ErrorStubHook(StubHook):
@@ -163,9 +251,11 @@ class ErrorStubHook(StubHook):
 
     All operations on this hook either return itself or raise the error.
     This is useful for representing failed promises or broken capabilities.
+    The original error is preserved verbatim (never re-wrapped), so wire
+    serialization stays faithful to what actually failed.
     """
     __slots__ = ('error',)
-    error: RpcError
+    error: Exception
 
     def call(self, path: list[str | int], args: RpcPayload) -> StubHook:
         """Always returns self (errors propagate through chains)."""
@@ -230,7 +320,12 @@ class PayloadStubHook(StubHook):
         self.payload.ensure_deep_copied()
 
     def call(self, path: list[str | int], args: RpcPayload) -> StubHook:
-        """Navigate the path and call as a function (synchronous).
+        """Navigate the path and call as a function (synchronous dispatch).
+
+        Port of TS ``ValueStubHook.call`` (core.ts:1628-1648): the walk
+        delegates to embedded stub hooks mid-path; a local function is
+        invoked via deliverCall semantics — any promises embedded in the
+        args are resolved and substituted before the function runs.
 
         Args:
             path: Property path to navigate
@@ -239,55 +334,74 @@ class PayloadStubHook(StubHook):
         Returns:
             A new hook with the result
         """
-        # If the payload value is an RpcStub, delegate to its hook
-        # This handles the case where a resolve message contains an exported capability
-        from capnweb.stubs import RpcStub
-        if isinstance(self.payload.value, RpcStub):
-            stub = self.payload.value
-            return stub._hook.call(path, args)
-        
-        # Navigate to the target
-        target = self._navigate(path)
+        from capnweb.stubs import RpcPromise, RpcStub
 
-        # If target is callable, call it
-        if callable(target):
-            args.ensure_deep_copied()
+        try:
+            result = follow_path(self.payload.value, None, path, self.payload)
+        except Exception as e:
+            return ErrorStubHook(self._navigation_error(path, e))
 
-            # Check if target is async
-            if inspect.iscoroutinefunction(target):
-                # Handle async callables - wrap in PromiseStubHook
-                async def call_async():
-                    try:
-                        result = (
-                            await target(*args.value)
-                            if isinstance(args.value, list)
-                            else await target(args.value)
-                        )
-                        return PayloadStubHook(RpcPayload.owned(result))
-                    except Exception as e:
-                        error = RpcError.internal(f"Call failed: {e}")
-                        return ErrorStubHook(error)
+        if result.hook is not None:
+            return result.hook.call(result.remaining_path or [], args)
 
-                # Return a promise hook that will resolve to the result
-                future: asyncio.Future[StubHook] = asyncio.ensure_future(call_async())
-                return PromiseStubHook(future)
-            # Handle synchronous callables
-            try:
-                result = (
-                    target(*args.value)
-                    if isinstance(args.value, list)
-                    else target(args.value)
-                )
-                return PayloadStubHook(RpcPayload.owned(result))
-            except Exception as e:
-                error = RpcError.internal(f"Call failed: {e}")
-                return ErrorStubHook(error)
+        target = result.value
+        # A trailing stub/promise value: the TS proxy makes stubs callable
+        # (apply trap -> doCall); Python delegates through the hook.
+        if isinstance(target, RpcStub):
+            return target._hook.call([], args)
+        if isinstance(target, RpcPromise):
+            return target._raw_hook.call(list(target._path), args)
 
-        error = RpcError.bad_request(f"Target at {path} is not callable")
-        return ErrorStubHook(error)
+        if not callable(target):
+            joined = ".".join(str(p) for p in path)
+            error = RpcError.bad_request(f"'{joined}' is not a function.")
+            return ErrorStubHook(error)
+
+        args.ensure_deep_copied()
+
+        if args.promises or args.substitutions or inspect.iscoroutinefunction(target):
+            # deliverCall (core.ts:1173-1205): promises in params must be
+            # resolved and substituted before the function is invoked.
+            async def call_async():
+                try:
+                    from capnweb.stubs import deliver_payload_in_place
+
+                    await deliver_payload_in_place(args)
+                    result = await invoke_callable(
+                        target,
+                        args.value if isinstance(args.value, list) else [args.value],
+                    )
+                    return PayloadStubHook(RpcPayload.owned(result))
+                except Exception as e:
+                    if isinstance(e, RpcError):
+                        return ErrorStubHook(e)  # explicit signal — preserve
+                    error = RpcError.wrap_internal(f"Call failed: {e}")
+                    return ErrorStubHook(error)
+
+            future: asyncio.Future[StubHook] = asyncio.ensure_future(call_async())
+            return PromiseStubHook(future)
+
+        # Synchronous callable with no embedded promises: invoke immediately
+        # (e-order; TS deliverCall's synchronous fast path).
+        try:
+            result = (
+                target(*args.value)
+                if isinstance(args.value, list)
+                else target(args.value)
+            )
+            return PayloadStubHook(RpcPayload.owned(result))
+        except Exception as e:
+            if isinstance(e, RpcError):
+                return ErrorStubHook(e)  # explicit signal — preserve message
+            error = RpcError.wrap_internal(f"Call failed: {e}")
+            return ErrorStubHook(error)
 
     def get(self, path: list[str | int]) -> StubHook:
         """Navigate the path and return the property.
+
+        Port of TS ``ValueStubHook.get`` (core.ts:1675-1706): delegates to
+        embedded stub hooks mid-path; otherwise deep-copies the reached
+        value (dup()ing embedded stubs) so the returned hook owns its copy.
 
         Args:
             path: Property path to navigate
@@ -296,38 +410,23 @@ class PayloadStubHook(StubHook):
             A new hook with the property value
         """
         try:
-            value = self._navigate(path)
-            return PayloadStubHook(RpcPayload.owned(value))
-        except (KeyError, IndexError, AttributeError) as e:
-            error = RpcError.not_found(f"Property {path} not found: {e}")
-            return ErrorStubHook(error)
+            result = follow_path(self.payload.value, None, path, self.payload)
+            if result.hook is not None:
+                return result.hook.get(result.remaining_path or [])
+            return PayloadStubHook(
+                RpcPayload.deep_copy_from(result.value, result.parent, result.owner)
+            )
+        except Exception as e:
+            return ErrorStubHook(self._navigation_error(path, e))
 
-    def _navigate(self, path: list[str | int]) -> Any:
-        """Navigate through the payload's value using the path.
-
-        Args:
-            path: List of property names/indices to navigate
-
-        Returns:
-            The value at the end of the path
-
-        Raises:
-            KeyError, IndexError, AttributeError: If navigation fails
-        """
-        current = self.payload.value
-
-        for segment in path:
-            if isinstance(segment, int):
-                # Array index
-                current = current[segment]
-            elif isinstance(current, dict):
-                # Dictionary key
-                current = current[segment]
-            else:
-                # Object attribute
-                current = getattr(current, segment)
-
-        return current
+    @staticmethod
+    def _navigation_error(path: list[str | int], exc: Exception) -> Exception:
+        """Adapt a navigation failure, preserving deliberate errors."""
+        if isinstance(exc, RpcError):
+            return exc
+        if isinstance(exc, (KeyError, IndexError, AttributeError, TypeError)):
+            return RpcError.not_found(f"Property {path} not found: {exc}")
+        return exc
 
     def map(
         self,
@@ -337,22 +436,32 @@ class PayloadStubHook(StubHook):
     ) -> StubHook:
         """Apply a map operation locally.
 
-        For local payloads, we apply the map function directly.
+        Port of TS ``ValueStubHook.map`` (core.ts:1650-1673): follows the
+        path (delegating to embedded stub hooks mid-path, with capture
+        disposal on navigation failure) and applies the mapper locally.
+        Errors are preserved verbatim in the ErrorStubHook — never re-wrapped.
         """
         try:
-            # Navigate to the array
-            target = self._navigate(path) if path else self.payload.value
+            try:
+                result = follow_path(self.payload.value, None, path, self.payload)
+            except Exception:
+                # We took ownership of the captures; dispose them
+                # (core.ts:1652-1661).
+                for cap in captures:
+                    cap.dispose()
+                raise
 
-            # Apply map locally using MapApplicator
+            if result.hook is not None:
+                return result.hook.map(
+                    result.remaining_path or [], captures, instructions
+                )
+
             from capnweb.map_applicator import apply_map_locally
-            result = apply_map_locally(target, self.payload, captures, instructions)
-            return result
+            return apply_map_locally(
+                result.value, result.parent, result.owner, captures, instructions
+            )
         except Exception as e:
-            # Dispose captures on error
-            for cap in captures:
-                cap.dispose()
-            error = RpcError.internal(f"Map failed: {e}")
-            return ErrorStubHook(error)
+            return ErrorStubHook(e)
 
     async def pull(self) -> RpcPayload:
         """Return the payload directly (already resolved)."""
@@ -367,9 +476,25 @@ class PayloadStubHook(StubHook):
         self.payload.dispose()
 
     def dup(self) -> "PayloadStubHook":
-        """Payloads can be shared (they manage their own stubs)."""
-        # Note: The payload already tracks its stubs for disposal
-        return PayloadStubHook(self.payload)
+        """Duplicate by deep-copying the payload (core.ts:1739-1750).
+
+        Each duplicate owns its own payload copy (with all embedded stubs
+        dup()ed), so disposing one duplicate never double-disposes stubs
+        reachable from the other.
+        """
+        return PayloadStubHook(
+            RpcPayload.deep_copy_from(self.payload.value, None, self.payload)
+        )
+
+    def on_broken(self, callback: Any) -> None:
+        """Forward to a single-stub payload's hook (core.ts:1772-1783).
+
+        If the payload IS a single stub, onRpcBroken forwards to it;
+        otherwise local payloads never break, so this is a no-op.
+        """
+        from capnweb.stubs import RpcStub
+        if isinstance(self.payload.value, RpcStub):
+            self.payload.value.on_rpc_broken(callback)
 
 
 class TargetStubHook(StubHook):
@@ -478,6 +603,22 @@ class TargetStubHook(StubHook):
 
         # Wrap the async call in a PromiseStubHook
         async def do_call():
+            # deliverCall parity (core.ts:1173-1205): promises embedded in
+            # the params are resolved and substituted before the target's
+            # method runs — this is what makes pipelined references inside
+            # call arguments work.
+            if args.promises or args.substitutions:
+                from capnweb.stubs import deliver_payload_in_place
+
+                try:
+                    await deliver_payload_in_place(args)
+                except Exception as e:
+                    if isinstance(e, RpcError):
+                        return ErrorStubHook(e)
+                    return ErrorStubHook(
+                        RpcError.wrap_internal(f"Argument resolution failed: {e}")
+                    )
+
             # Determine method name and target object
             if not path:
                 # Empty path = function call (invoke target directly)
@@ -501,14 +642,43 @@ class TargetStubHook(StubHook):
             except RpcError as e:
                 return ErrorStubHook(e)
             except Exception as e:
-                error = RpcError.internal(f"Target call failed: {e}")
+                # F6: unexpected app exception — flag as internal-origin so the
+                # serializer redacts its free-text message (which may embed a
+                # filesystem path/secret) before it reaches an untrusted peer.
+                error = RpcError.wrap_internal(f"Target call failed: {e}")
                 return ErrorStubHook(error)
 
         future: asyncio.Future[StubHook] = asyncio.ensure_future(do_call())
         return PromiseStubHook(future)
 
+    async def _follow_from_target(
+        self, path: list[str | int]
+    ) -> "FollowPathResult":
+        """Resolve a property path starting at the RpcTarget.
+
+        The first hop goes through ``target.get_property`` (the Python
+        RpcTarget protocol); nested RpcTargets keep using ``get_property``;
+        plain values/containers and embedded stubs are walked by
+        :func:`follow_path`. Descending into an RpcTarget clears the owner,
+        like TS (core.ts:1536-1547).
+        """
+        from capnweb.types import RpcTarget as RpcTargetType
+
+        value: Any = self.target
+        for i, part in enumerate(path):
+            if isinstance(value, RpcTargetType) and hasattr(value, "get_property"):
+                value = await value.get_property(str(part))
+                continue
+            # Non-target value: hand the rest of the walk to follow_path.
+            return follow_path(value, None, list(path[i:]), None)
+        return follow_path(value, None, [], None)
+
     def get(self, path: list[str | int]) -> StubHook:
         """Get a property from the target.
+
+        Supports full property paths (TS ValueStubHook.get + followPath):
+        chained ``get_property`` for nested targets, plain-container hops,
+        and mid-path delegation to embedded stubs.
 
         Args:
             path: Property path
@@ -516,30 +686,31 @@ class TargetStubHook(StubHook):
         Returns:
             A new hook with the property value
         """
-
-        # For now, delegate to target.get_property for simple case
-        if len(path) == 1:
-
-            async def get_property_async():
-                try:
-                    result = await self.target.get_property(str(path[0]))
-                    return PayloadStubHook(RpcPayload.from_app_return(result))
-                except Exception as e:
-                    if isinstance(e, RpcError):
-                        return ErrorStubHook(e)
-                    error = RpcError.internal(f"Property access failed: {e}")
-                    return ErrorStubHook(error)
-
-            # Return a promise hook that will resolve to the property
-            future: asyncio.Future[StubHook] = asyncio.ensure_future(
-                get_property_async()
+        if not path:
+            # TS ValueStubHook.get (core.ts:1679-1685): a TargetStubHook
+            # never backs a promise, so an empty-path get is a protocol
+            # misuse.
+            return ErrorStubHook(
+                RpcError.bad_request("Can't dup an RpcTarget stub as a promise.")
             )
-            return PromiseStubHook(future)
 
-        error = RpcError.not_found(
-            "Complex property paths not yet supported on targets"
+        async def get_property_async():
+            try:
+                result = await self._follow_from_target(path)
+                if result.hook is not None:
+                    return result.hook.get(result.remaining_path or [])
+                return PayloadStubHook(RpcPayload.from_app_return(result.value))
+            except Exception as e:
+                if isinstance(e, RpcError):
+                    return ErrorStubHook(e)
+                error = RpcError.wrap_internal(f"Property access failed: {e}")
+                return ErrorStubHook(error)
+
+        # Return a promise hook that will resolve to the property
+        future: asyncio.Future[StubHook] = asyncio.ensure_future(
+            get_property_async()
         )
-        return ErrorStubHook(error)
+        return PromiseStubHook(future)
 
     def map(
         self,
@@ -547,11 +718,36 @@ class TargetStubHook(StubHook):
         captures: list[StubHook],
         instructions: list[Any],
     ) -> StubHook:
-        """Map is not supported on targets - targets are not arrays."""
-        for cap in captures:
-            cap.dispose()
-        error = RpcError.bad_request("Cannot map over a target object")
-        return ErrorStubHook(error)
+        """Map over a property of the target (TS ValueStubHook.map).
+
+        ``stub_to_rpc_target.some_array_prop`` IS mappable: the path is
+        followed into the target's value (delegating to embedded stub hooks
+        mid-path) and the mapper is applied locally. Original errors are
+        preserved — no re-wrap (core.ts:1650-1673).
+        """
+        async def do_map():
+            try:
+                try:
+                    result = await self._follow_from_target(path)
+                except Exception:
+                    for cap in captures:
+                        cap.dispose()
+                    raise
+
+                if result.hook is not None:
+                    return result.hook.map(
+                        result.remaining_path or [], captures, instructions
+                    )
+
+                from capnweb.map_applicator import apply_map_locally
+                return apply_map_locally(
+                    result.value, result.parent, result.owner,
+                    captures, instructions,
+                )
+            except Exception as e:
+                return ErrorStubHook(e)
+
+        return PromiseStubHook(asyncio.ensure_future(do_map()))
 
     async def pull(self) -> RpcPayload:
         """Targets can't be pulled directly."""
@@ -666,16 +862,77 @@ class PromiseStubHook(StubHook):
             self.future.add_done_callback(_ignore_exception)
 
     def dispose(self) -> None:
-        """Cancel the promise if not resolved, or dispose the result if resolved."""
-        if not self.future.done():
-            self.future.cancel()
-        elif not self.future.cancelled():
-            try:
-                result = self.future.result()
-                result.dispose()
-            except Exception:  # noqa: S110
-                pass
+        """Dispose the resolution — WITHOUT canceling pending work.
+
+        TS semantics (core.ts:1984-1994): disposing a promise hook defers
+        the disposal to the eventual resolution. It must NOT cancel the
+        in-flight work, because chained hooks (created via get/call/map
+        before the dispose) share the same future — the mapper applicator
+        relies on this when it disposes intermediate variables whose results
+        still feed later instructions.
+        """
+        def _dispose_result(future: asyncio.Future) -> None:
+            if future.cancelled():
+                return
+            if future.exception() is not None:
+                return  # nothing to dispose
+            future.result().dispose()
+
+        if self.future.done():
+            _dispose_result(self.future)
+        else:
+            self.future.add_done_callback(_dispose_result)
 
     def dup(self) -> "PromiseStubHook":
-        """Share the same future (promises can be shared)."""
-        return PromiseStubHook(self.future)
+        """Duplicate: dup the resolved hook once available (core.ts:1952-1957).
+
+        The duplicate holds its OWN reference: when the shared future
+        resolves, the resulting hook is dup()ed for this duplicate, so each
+        of the two hooks can be disposed independently without
+        double-disposing the resolution.
+        """
+        async def dup_resolved() -> StubHook:
+            resolved_hook = await asyncio.shield(self.future)
+            return resolved_hook.dup()
+
+        return PromiseStubHook(asyncio.ensure_future(dup_resolved()))
+
+    def stream(
+        self, path: list[str | int], args: RpcPayload
+    ) -> tuple[Any, int | None]:
+        """Await resolution, then re-dispatch the stream (core.ts:1924-1934).
+
+        Args are deep-copied before parking; no size is reported — the safe
+        default is serialized writes.
+        """
+        args.ensure_deep_copied()
+        future = self.future
+
+        async def run_after_resolve() -> None:
+            resolved = await future
+            awaitable, _size = resolved.stream(path, args)
+            await awaitable
+
+        return run_after_resolve(), None
+
+    def on_broken(self, callback: Any) -> None:
+        """Forward onBroken to the resolution (core.ts:1996-2004).
+
+        If the promise rejects, the callback receives the error instead.
+        """
+        def _forward(future: asyncio.Future[StubHook]) -> None:
+            if future.cancelled():
+                return
+            err = future.exception()
+            if err is not None:
+                try:
+                    callback(err)
+                except Exception:
+                    pass
+            else:
+                future.result().on_broken(callback)
+
+        if self.future.done():
+            _forward(self.future)
+        else:
+            self.future.add_done_callback(_forward)

@@ -14,6 +14,7 @@ from typing import Any
 
 from capnweb import RpcTarget, RpcError
 from capnweb.ws_session import WebSocketRpcClient, WebSocketRpcServer
+from ..support import rpc_call
 
 
 @dataclass
@@ -112,10 +113,10 @@ class TestPubSub:
             subscriber = Subscriber(name="sub1")
             url = f"ws://localhost:{port}/rpc"
             async with WebSocketRpcClient(url, local_main=subscriber) as client:
-                result = await client.call(0, "subscribe", ["news", subscriber])
+                result = await rpc_call(client, "subscribe", ["news", subscriber])
                 assert result["subscribers"] == 1
                 
-                await client.call(0, "publish", ["news", {"headline": "Hello"}])
+                await rpc_call(client, "publish", ["news", {"headline": "Hello"}])
                 await asyncio.sleep(0.1)
                 
                 assert len(subscriber.received) == 1
@@ -137,10 +138,10 @@ class TestPubSub:
             
             async with WebSocketRpcClient(url, local_main=sub1) as client1:
                 async with WebSocketRpcClient(url, local_main=sub2) as client2:
-                    await client1.call(0, "subscribe", ["events", sub1])
-                    await client2.call(0, "subscribe", ["events", sub2])
+                    await rpc_call(client1, "subscribe", ["events", sub1])
+                    await rpc_call(client2, "subscribe", ["events", sub2])
                     
-                    result = await client1.call(0, "publish", ["events", {"type": "test"}])
+                    result = await rpc_call(client1, "publish", ["events", {"type": "test"}])
                     assert result["delivered"] == 2
                     
                     await asyncio.sleep(0.1)
@@ -160,10 +161,10 @@ class TestPubSub:
             subscriber = Subscriber(name="sub1")
             url = f"ws://localhost:{port}/rpc"
             async with WebSocketRpcClient(url, local_main=subscriber) as client:
-                await client.call(0, "subscribe", ["alerts", subscriber])
-                await client.call(0, "unsubscribe", ["alerts", subscriber])
+                await rpc_call(client, "subscribe", ["alerts", subscriber])
+                await rpc_call(client, "unsubscribe", ["alerts", subscriber])
                 
-                result = await client.call(0, "publish", ["alerts", {"alert": "test"}])
+                result = await rpc_call(client, "publish", ["alerts", {"alert": "test"}])
                 assert result["delivered"] == 0
         finally:
             await server.stop()
@@ -182,12 +183,12 @@ class TestPubSub:
             
             async with WebSocketRpcClient(url, local_main=sub1) as client1:
                 async with WebSocketRpcClient(url, local_main=sub2) as client2:
-                    await client1.call(0, "subscribe", ["topic1", sub1])
-                    await client2.call(0, "subscribe", ["topic2", sub2])
-                    await client1.call(0, "publish", ["topic1", {}])
-                    await client2.call(0, "publish", ["topic2", {}])
+                    await rpc_call(client1, "subscribe", ["topic1", sub1])
+                    await rpc_call(client2, "subscribe", ["topic2", sub2])
+                    await rpc_call(client1, "publish", ["topic1", {}])
+                    await rpc_call(client2, "publish", ["topic2", {}])
                     
-                    stats = await client1.call(0, "get_stats", [])
+                    stats = await rpc_call(client1, "get_stats", [])
                     assert stats["topics"] == 2
                     assert stats["total_subscribers"] == 2
                     assert stats["messages_published"] == 2
@@ -205,11 +206,11 @@ class TestPubSub:
             subscriber = Subscriber(name="multi")
             url = f"ws://localhost:{port}/rpc"
             async with WebSocketRpcClient(url, local_main=subscriber) as client:
-                await client.call(0, "subscribe", ["sports", subscriber])
-                await client.call(0, "subscribe", ["weather", subscriber])
+                await rpc_call(client, "subscribe", ["sports", subscriber])
+                await rpc_call(client, "subscribe", ["weather", subscriber])
                 
-                await client.call(0, "publish", ["sports", {"score": "1-0"}])
-                await client.call(0, "publish", ["weather", {"temp": 72}])
+                await rpc_call(client, "publish", ["sports", {"score": "1-0"}])
+                await rpc_call(client, "publish", ["weather", {"temp": 72}])
                 await asyncio.sleep(0.1)
                 
                 assert len(subscriber.received) == 2

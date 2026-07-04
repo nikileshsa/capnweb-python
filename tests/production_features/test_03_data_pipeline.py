@@ -14,6 +14,7 @@ from typing import Any
 
 from capnweb import RpcTarget, RpcError
 from capnweb.ws_session import WebSocketRpcClient, WebSocketRpcServer
+from ..support import rpc_call
 
 
 @dataclass
@@ -124,11 +125,11 @@ class TestDataPipeline:
         try:
             url = f"ws://localhost:{port}/rpc"
             async with WebSocketRpcClient(url) as client:
-                result = await client.call(0, "create_dataset", ["numbers", [1, 2, 3, 4, 5]])
+                result = await rpc_call(client, "create_dataset", ["numbers", [1, 2, 3, 4, 5]])
                 assert result["name"] == "numbers"
                 assert result["size"] == 5
                 
-                result = await client.call(0, "transform", ["numbers", "double"])
+                result = await rpc_call(client, "transform", ["numbers", "double"])
                 assert result["data"] == [2, 4, 6, 8, 10]
         finally:
             await server.stop()
@@ -143,9 +144,9 @@ class TestDataPipeline:
         try:
             url = f"ws://localhost:{port}/rpc"
             async with WebSocketRpcClient(url) as client:
-                await client.call(0, "create_dataset", ["data", [1, 2, 3, 4, 5]])
-                await client.call(0, "transform", ["data", "double"])
-                result = await client.call(0, "transform", ["data_double", "square"])
+                await rpc_call(client, "create_dataset", ["data", [1, 2, 3, 4, 5]])
+                await rpc_call(client, "transform", ["data", "double"])
+                result = await rpc_call(client, "transform", ["data_double", "square"])
                 assert result["data"] == [4, 16, 36, 64, 100]
         finally:
             await server.stop()
@@ -160,11 +161,11 @@ class TestDataPipeline:
         try:
             url = f"ws://localhost:{port}/rpc"
             async with WebSocketRpcClient(url) as client:
-                await client.call(0, "create_dataset", ["mixed", [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]])
-                filter_result = await client.call(0, "filter", ["mixed", "even"])
+                await rpc_call(client, "create_dataset", ["mixed", [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]])
+                filter_result = await rpc_call(client, "filter", ["mixed", "even"])
                 assert filter_result["data"] == [2, 4, 6, 8, 10]
                 
-                agg_result = await client.call(0, "aggregate", ["mixed_even", "sum"])
+                agg_result = await rpc_call(client, "aggregate", ["mixed_even", "sum"])
                 assert agg_result["result"] == 30
         finally:
             await server.stop()
@@ -179,18 +180,18 @@ class TestDataPipeline:
         try:
             url = f"ws://localhost:{port}/rpc"
             async with WebSocketRpcClient(url) as client:
-                await client.call(0, "create_dataset", ["nums", [1, 2, 3, 4, 5]])
+                await rpc_call(client, "create_dataset", ["nums", [1, 2, 3, 4, 5]])
                 
-                sum_result = await client.call(0, "aggregate", ["nums", "sum"])
+                sum_result = await rpc_call(client, "aggregate", ["nums", "sum"])
                 assert sum_result["result"] == 15
                 
-                avg_result = await client.call(0, "aggregate", ["nums", "avg"])
+                avg_result = await rpc_call(client, "aggregate", ["nums", "avg"])
                 assert avg_result["result"] == 3.0
                 
-                min_result = await client.call(0, "aggregate", ["nums", "min"])
+                min_result = await rpc_call(client, "aggregate", ["nums", "min"])
                 assert min_result["result"] == 1
                 
-                max_result = await client.call(0, "aggregate", ["nums", "max"])
+                max_result = await rpc_call(client, "aggregate", ["nums", "max"])
                 assert max_result["result"] == 5
         finally:
             await server.stop()
@@ -205,12 +206,12 @@ class TestDataPipeline:
         try:
             url = f"ws://localhost:{port}/rpc"
             async with WebSocketRpcClient(url) as client:
-                await client.call(0, "create_dataset", ["a", [1, 2, 3]])
-                await client.call(0, "create_dataset", ["b", [4, 5, 6]])
-                await client.call(0, "transform", ["a", "double"])
-                await client.call(0, "transform", ["b", "square"])
+                await rpc_call(client, "create_dataset", ["a", [1, 2, 3]])
+                await rpc_call(client, "create_dataset", ["b", [4, 5, 6]])
+                await rpc_call(client, "transform", ["a", "double"])
+                await rpc_call(client, "transform", ["b", "square"])
                 
-                stats = await client.call(0, "get_stats", [])
+                stats = await rpc_call(client, "get_stats", [])
                 assert stats["datasets"] == 4
                 assert stats["transforms"] == 2
                 assert stats["total_items"] == 12
@@ -228,13 +229,13 @@ class TestDataPipeline:
             url = f"ws://localhost:{port}/rpc"
             async with WebSocketRpcClient(url) as client:
                 tasks = [
-                    asyncio.create_task(client.call(0, "create_dataset", [f"ds{i}", list(range(i, i+5))]))
+                    asyncio.create_task(rpc_call(client, "create_dataset", [f"ds{i}", list(range(i, i+5))]))
                     for i in range(5)
                 ]
                 results = await asyncio.gather(*tasks)
                 assert len(results) == 5
                 
-                stats = await client.call(0, "get_stats", [])
+                stats = await rpc_call(client, "get_stats", [])
                 assert stats["datasets"] == 5
         finally:
             await server.stop()

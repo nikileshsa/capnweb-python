@@ -182,8 +182,13 @@ class TestSerializerStubs:
 class TestSerializerPromises:
     """Test serialization of RpcPromise objects."""
 
-    def test_serialize_promise(self):
-        """Test serializing an RpcPromise."""
+    async def test_serialize_promise(self):
+        """Test serializing an RpcPromise.
+
+        Async because promises now route through ``export_promise`` (matrix
+        02 row 19), which starts the session's auto-resolve task and
+        therefore needs a running event loop.
+        """
         transport_a, transport_b = create_transport_pair()
         session = BidirectionalSession(transport_a, None)
         serializer = Serializer(exporter=session)
@@ -194,13 +199,13 @@ class TestSerializerPromises:
 
         result = serializer.serialize(promise)
 
-        # Per protocol.md, promises are exported as ["promise", id]
-        assert isinstance(result, list)
-        assert len(result) == 2
-        assert result[0] == "promise"
+        # The promise hook is an import of this session (it points back at
+        # the peer), so serialization emits pure pipelining, not a fresh
+        # export (matrix 02 rows 18/19; serialize.ts:459-465).
+        assert result == ["pipeline", 1]
 
-    def test_serialize_promise_in_dict(self):
-        """Test serializing promise nested in dictionary."""
+    async def test_serialize_promise_in_dict(self):
+        """Test serializing promise nested in dictionary (async: see above)."""
         transport_a, transport_b = create_transport_pair()
         session = BidirectionalSession(transport_a, None)
         serializer = Serializer(exporter=session)
@@ -211,8 +216,8 @@ class TestSerializerPromises:
         result = serializer.serialize({"result": promise, "status": "pending"})
 
         assert result["status"] == "pending"
-        assert isinstance(result["result"], list)
-        assert result["result"][0] == "promise"
+        # Peer-pointing promise -> ["pipeline", importId] (see above).
+        assert result["result"] == ["pipeline", 1]
 
 
 class TestSerializerEdgeCases:

@@ -230,8 +230,9 @@ class InteropClient:
             await self._client.__aexit__(*args)
     
     async def call(self, method: str, args: list | None = None) -> Any:
-        """Call a method on the remote main capability."""
-        return await self._client.call(0, method, args or [])
+        """Call a method on the remote main capability (via the stub API)."""
+        stub = self._client.get_main_stub()
+        return await getattr(stub, method)(*(args or []))
     
     async def call_with_timeout(
         self, method: str, args: list | None = None, timeout: float = 5.0

@@ -328,17 +328,10 @@ class TestPayloadStubHookMap:
 class TestTargetStubHookMap:
     """Unit tests for TargetStubHook.map()."""
 
-    def test_map_returns_error(self) -> None:
-        """map() on target should return error (targets aren't arrays)."""
-        target = ArrayProviderTarget()
-        hook = TargetStubHook(target)
-
-        result = hook.map([], [], [])
-
-        assert isinstance(result, ErrorStubHook)
-
-    async def test_map_error_message(self) -> None:
-        """map() error should have descriptive message."""
+    async def test_map_empty_instructions_rejected(self) -> None:
+        """map() with an empty instruction list is invalid (map.ts:252-254);
+        B2/TS parity: TargetStubHook.map no longer flatly rejects — it
+        follows the path and applies, so the error surfaces on pull."""
         target = ArrayProviderTarget()
         hook = TargetStubHook(target)
 
@@ -347,7 +340,7 @@ class TestTargetStubHookMap:
         with pytest.raises(RpcError) as exc_info:
             await result.pull()
 
-        assert "target" in str(exc_info.value).lower()
+        assert "Invalid empty mapper function" in str(exc_info.value)
 
 
 class TestPromiseStubHookMap:
@@ -433,10 +426,11 @@ class TestWireRemapFormat:
         )
 
         json_data = remap.to_json()
-        assert json_data[2] is None  # path should be null
+        # B2: propertyPath is ALWAYS an array on the wire (TS rejects null).
+        assert json_data[2] == []  # path always an array
 
         parsed = WireRemap.from_json(json_data)
-        assert parsed.property_path is None
+        assert not parsed.property_path  # [] round-trips as empty
 
     def test_capture_types(self) -> None:
         """WireCapture should handle both import and export types."""

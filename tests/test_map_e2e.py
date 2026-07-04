@@ -601,7 +601,8 @@ class TestMapE2ERpcStubMap:
         result = stub.map(lambda x: x)
         value = await result
 
-        assert value is not None
+        # B2: real recorder — identity map returns the REAL elements.
+        assert value == [1, 2, 3]
 
     async def test_rpc_promise_map(self) -> None:
         """E2E: RpcPromise.map() works correctly."""
@@ -611,7 +612,7 @@ class TestMapE2ERpcStubMap:
         result = promise.map(lambda x: x)
         value = await result
 
-        assert value is not None
+        assert value == [10, 20, 30]
 
     async def test_chained_maps(self) -> None:
         """E2E: Chained map operations work."""
@@ -622,7 +623,7 @@ class TestMapE2ERpcStubMap:
         result = promise.map(lambda x: x).map(lambda x: x).map(lambda x: x)
         value = await result
 
-        assert value is not None
+        assert value == [1, 2, 3]
 
     async def test_map_through_session(self) -> None:
         """E2E: Map through real session."""

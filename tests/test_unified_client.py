@@ -13,6 +13,7 @@ from capnweb.types import RpcTarget
 from capnweb.unified_client import UnifiedClient, UnifiedClientConfig
 from capnweb.ws_session import WebSocketServerTransport
 from capnweb.rpc_session import BidirectionalSession
+from .support import rpc_call
 
 
 class CalculatorService(RpcTarget):
@@ -88,7 +89,7 @@ class TestUnifiedClientWebSocket:
         try:
             config = UnifiedClientConfig(url="ws://localhost:9101/rpc")
             async with UnifiedClient(config) as client:
-                result = await client.call(0, "add", [5, 3])
+                result = await rpc_call(client, "add", [5, 3])
                 assert result == 8
         finally:
             await runner.cleanup()
@@ -101,7 +102,7 @@ class TestUnifiedClientWebSocket:
             config = UnifiedClientConfig(url="ws://localhost:9102/rpc")
             async with UnifiedClient(config) as client:
                 for i in range(10):
-                    result = await client.call(0, "add", [i, 1])
+                    result = await rpc_call(client, "add", [i, 1])
                     assert result == i + 1
         finally:
             await runner.cleanup()
@@ -114,7 +115,7 @@ class TestUnifiedClientWebSocket:
             config = UnifiedClientConfig(url="ws://localhost:9103/rpc")
             async with UnifiedClient(config) as client:
                 # Make a call to populate stats
-                await client.call(0, "echo", ["test"])
+                await rpc_call(client, "echo", ["test"])
                 
                 stats = client.get_stats()
                 assert "imports" in stats
@@ -133,7 +134,7 @@ class TestUnifiedClientWebSocket:
             async with UnifiedClient(config) as client:
                 # Make some calls
                 for i in range(5):
-                    await client.call(0, "echo", [f"msg{i}"])
+                    await rpc_call(client, "echo", [f"msg{i}"])
                 
                 # Drain should complete
                 await asyncio.wait_for(client.drain(), timeout=1.0)
@@ -159,7 +160,7 @@ class TestUnifiedClientWebSocket:
             config = UnifiedClientConfig(url="ws://localhost:9106/rpc")
             async with UnifiedClient(config) as client:
                 tasks = [
-                    client.call(0, "add", [i, i])
+                    rpc_call(client, "add", [i, i])
                     for i in range(10)
                 ]
                 results = await asyncio.gather(*tasks)
@@ -212,7 +213,7 @@ class TestUnifiedClientWithLocalMain:
             )
             async with UnifiedClient(config) as client:
                 # Simple call to verify connection works
-                result = await client.call(0, "echo", ["test"])
+                result = await rpc_call(client, "echo", ["test"])
                 assert result == "test"
         finally:
             await runner.cleanup()
@@ -230,7 +231,7 @@ class TestUnifiedClientStress:
             config = UnifiedClientConfig(url="ws://localhost:9109/rpc")
             async with UnifiedClient(config) as client:
                 for i in range(100):
-                    result = await client.call(0, "multiply", [i, 2])
+                    result = await rpc_call(client, "multiply", [i, 2])
                     assert result == i * 2
         finally:
             await runner.cleanup()
@@ -243,7 +244,7 @@ class TestUnifiedClientStress:
             config = UnifiedClientConfig(url="ws://localhost:9110/rpc")
             async with UnifiedClient(config) as client:
                 large_string = "X" * 10000
-                result = await client.call(0, "echo", [large_string])
+                result = await rpc_call(client, "echo", [large_string])
                 assert result == large_string
         finally:
             await runner.cleanup()
@@ -258,7 +259,7 @@ class TestUnifiedClientStress:
                 async with UnifiedClient(config) as client:
                     results = []
                     for i in range(5):
-                        result = await client.call(0, "add", [client_id, i])
+                        result = await rpc_call(client, "add", [client_id, i])
                         results.append(result)
                     return results
             

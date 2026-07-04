@@ -20,6 +20,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 from .conftest import InteropClient, ServerProcess
+from ..support import rpc_call
 
 
 # =============================================================================
@@ -73,11 +74,11 @@ class TestCapabilityPassing:
             
             # Pass client's local main to server
             callback_stub = RpcStub(client._session.get_export(0).dup())
-            result = await client.call(0, "registerCallback", [callback_stub])
+            result = await rpc_call(client, "registerCallback", [callback_stub])
             assert result == "registered"
             
             # Have server call back
-            result = await client.call(0, "triggerCallback", [])
+            result = await rpc_call(client, "triggerCallback", [])
             assert result == "Got: ping"
             assert local.notifications == ["ping"]
     
@@ -109,10 +110,10 @@ class TestCapabilityPassing:
             assert client._session is not None
             
             callback_stub = RpcStub(client._session.get_export(0).dup())
-            result = await client.call(0, "registerCallback", [callback_stub])
+            result = await rpc_call(client, "registerCallback", [callback_stub])
             assert result == "registered"
             
-            result = await client.call(0, "triggerCallback", [])
+            result = await rpc_call(client, "triggerCallback", [])
             assert result == "Got: ping"
             assert local.notifications == ["ping"]
 
@@ -131,7 +132,7 @@ class TestReleaseMessages:
         
         async with WebSocketRpcClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             # Make a call that returns a capability
-            counter = await client.call(0, "makeCounter", [10])
+            counter = await rpc_call(client, "makeCounter", [10])
             
             # The session should have tracked the import
             session = client._session
@@ -146,7 +147,7 @@ class TestReleaseMessages:
         from capnweb.ws_session import WebSocketRpcClient
         
         async with WebSocketRpcClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
-            counter = await client.call(0, "makeCounter", [10])
+            counter = await rpc_call(client, "makeCounter", [10])
             session = client._session
             assert session is not None
 
@@ -195,9 +196,9 @@ class TestCapabilityCleanup:
         
         async with WebSocketRpcClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             # Make several calls
-            await client.call(0, "square", [5])
-            await client.call(0, "greet", ["World"])
-            await client.call(0, "generateFibonacci", [5])
+            await rpc_call(client, "square", [5])
+            await rpc_call(client, "greet", ["World"])
+            await rpc_call(client, "generateFibonacci", [5])
             
             session = client._session
             assert session is not None
@@ -215,9 +216,9 @@ class TestCapabilityCleanup:
         from capnweb.ws_session import WebSocketRpcClient
         
         async with WebSocketRpcClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
-            await client.call(0, "square", [5])
-            await client.call(0, "greet", ["World"])
-            await client.call(0, "generateFibonacci", [5])
+            await rpc_call(client, "square", [5])
+            await rpc_call(client, "greet", ["World"])
+            await rpc_call(client, "generateFibonacci", [5])
             
             session = client._session
             assert session is not None
@@ -258,12 +259,12 @@ class TestBidirectionalCapabilities:
             local_main=local,
         ) as client:
             callback_stub = RpcStub(client._session.get_export(0).dup())
-            await client.call(0, "registerCallback", [callback_stub])
+            await rpc_call(client, "registerCallback", [callback_stub])
             
             # Trigger callback multiple times
-            result1 = await client.call(0, "triggerCallback", [])
-            result2 = await client.call(0, "triggerCallback", [])
-            result3 = await client.call(0, "triggerCallback", [])
+            result1 = await rpc_call(client, "triggerCallback", [])
+            result2 = await rpc_call(client, "triggerCallback", [])
+            result3 = await rpc_call(client, "triggerCallback", [])
             
             assert local.call_count == 3
     
@@ -292,10 +293,10 @@ class TestBidirectionalCapabilities:
             local_main=local,
         ) as client:
             callback_stub = RpcStub(client._session.get_export(0).dup())
-            await client.call(0, "registerCallback", [callback_stub])
+            await rpc_call(client, "registerCallback", [callback_stub])
             
-            result1 = await client.call(0, "triggerCallback", [])
-            result2 = await client.call(0, "triggerCallback", [])
-            result3 = await client.call(0, "triggerCallback", [])
+            result1 = await rpc_call(client, "triggerCallback", [])
+            result2 = await rpc_call(client, "triggerCallback", [])
+            result3 = await rpc_call(client, "triggerCallback", [])
             
             assert local.call_count == 3

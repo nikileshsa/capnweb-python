@@ -20,6 +20,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 from .conftest import InteropClient, ServerProcess
+from ..support import rpc_call
 
 
 # =============================================================================
@@ -220,11 +221,11 @@ class TestCallbackErrors:
             local_main=local,
         ) as client:
             callback_stub = RpcStub(client._session.get_export(0).dup())
-            await client.call(0, "registerCallback", [callback_stub])
+            await rpc_call(client, "registerCallback", [callback_stub])
             
             # When server calls callback, it should get an error
             with pytest.raises(Exception):
-                await client.call(0, "triggerCallback", [])
+                await rpc_call(client, "triggerCallback", [])
     
     async def test_callback_throws_error_py(self, py_server: ServerProcess):
         """Error in client callback is propagated back to server."""
@@ -247,10 +248,10 @@ class TestCallbackErrors:
             local_main=local,
         ) as client:
             callback_stub = RpcStub(client._session.get_export(0).dup())
-            await client.call(0, "registerCallback", [callback_stub])
+            await rpc_call(client, "registerCallback", [callback_stub])
             
             with pytest.raises(Exception):
-                await client.call(0, "triggerCallback", [])
+                await rpc_call(client, "triggerCallback", [])
 
 
 # =============================================================================
@@ -289,7 +290,7 @@ class TestConnectionErrors:
         
         with pytest.raises(Exception):
             async with WebSocketRpcClient("ws://127.0.0.1:59999/") as client:
-                await client.call(0, "square", [5])
+                await rpc_call(client, "square", [5])
     
     async def test_server_shutdown_during_call_ts(self, ts_server_fresh: ServerProcess):
         """Server shutdown during call is handled gracefully."""
@@ -297,7 +298,7 @@ class TestConnectionErrors:
         
         async with WebSocketRpcClient(f"ws://127.0.0.1:{ts_server_fresh.port}/") as client:
             # Make a successful call first
-            result = await client.call(0, "square", [5])
+            result = await rpc_call(client, "square", [5])
             assert result == 25
             
             # Stop the server
@@ -306,7 +307,7 @@ class TestConnectionErrors:
             # Next call should fail
             with pytest.raises(Exception):
                 await asyncio.wait_for(
-                    client.call(0, "square", [6]),
+                    rpc_call(client, "square", [6]),
                     timeout=5.0
                 )
     
@@ -315,13 +316,13 @@ class TestConnectionErrors:
         from capnweb.ws_session import WebSocketRpcClient
         
         async with WebSocketRpcClient(f"ws://127.0.0.1:{py_server_fresh.port}/rpc") as client:
-            result = await client.call(0, "square", [5])
+            result = await rpc_call(client, "square", [5])
             assert result == 25
             
             py_server_fresh.stop()
             
             with pytest.raises(Exception):
                 await asyncio.wait_for(
-                    client.call(0, "square", [6]),
+                    rpc_call(client, "square", [6]),
                     timeout=5.0
                 )

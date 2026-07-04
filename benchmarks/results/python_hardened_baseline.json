@@ -1,0 +1,528 @@
+{
+  "env": {
+    "timestamp": "2026-07-04T13:05:37-0700",
+    "python_version": "3.12.11",
+    "python_impl": "CPython",
+    "platform": "macOS-26.2-arm64-arm-64bit",
+    "processor": "arm",
+    "machine": "arm64",
+    "capnweb_version": "0.1.0",
+    "cpu_brand": "Apple M4 Max",
+    "ncpu": "16"
+  },
+  "results": [
+    {
+      "name": "serialize/capability_payload_8stubs",
+      "group": "codec.capability",
+      "ns_median": 2746.75525,
+      "ns_p95": 2822.60425,
+      "ns_mean": 2802.689083333333,
+      "ns_stddev": 385.3433319928819,
+      "ns_min": 2713.146,
+      "ops_per_sec": 364065.9283348962,
+      "samples": 60,
+      "inner": 4000,
+      "bytes": 0,
+      "extra": {
+        "stubs": 8,
+        "note": "python-only; tree only, no json"
+      }
+    },
+    {
+      "name": "deserialize/bytes_blob_1mb",
+      "group": "codec.deserialize",
+      "ns_median": 1801021.5625,
+      "ns_p95": 2012697.5,
+      "ns_mean": 1820841.6461666666,
+      "ns_stddev": 97091.04024159635,
+      "ns_min": 1669546.04,
+      "ops_per_sec": 555.24043732819,
+      "samples": 60,
+      "inner": 200,
+      "bytes": 1398114,
+      "extra": {
+        "wire_bytes": 1398114
+      }
+    },
+    {
+      "name": "deserialize/error_value",
+      "group": "codec.deserialize",
+      "ns_median": 2228.2578125,
+      "ns_p95": 2271.260375,
+      "ns_mean": 2228.0051229166666,
+      "ns_stddev": 43.58726056776014,
+      "ns_min": 2158.713625,
+      "ops_per_sec": 448781.1035106603,
+      "samples": 60,
+      "inner": 8000,
+      "bytes": 51,
+      "extra": {
+        "wire_bytes": 51
+      }
+    },
+    {
+      "name": "deserialize/large_array_10k_ints",
+      "group": "codec.deserialize",
+      "ns_median": 1481029.6875,
+      "ns_p95": 1525798.95,
+      "ns_mean": 1485683.75125,
+      "ns_stddev": 25476.099345734994,
+      "ns_min": 1448005.225,
+      "ops_per_sec": 675.2059114277546,
+      "samples": 60,
+      "inner": 40,
+      "bytes": 48893,
+      "extra": {
+        "wire_bytes": 48893
+      }
+    },
+    {
+      "name": "deserialize/large_string_1mb",
+      "group": "codec.deserialize",
+      "ns_median": 466242.8125,
+      "ns_p95": 635417.085,
+      "ns_mean": 496471.29825,
+      "ns_stddev": 58199.83481827517,
+      "ns_min": 458995.625,
+      "ops_per_sec": 2144.805181313117,
+      "samples": 60,
+      "inner": 200,
+      "bytes": 1048578,
+      "extra": {
+        "wire_bytes": 1048578
+      }
+    },
+    {
+      "name": "deserialize/nested_object",
+      "group": "codec.deserialize",
+      "ns_median": 6593.614625,
+      "ns_p95": 6887.677,
+      "ns_mean": 6633.221512499999,
+      "ns_stddev": 128.17091230648197,
+      "ns_min": 6508.177,
+      "ops_per_sec": 151661.88151313135,
+      "samples": 60,
+      "inner": 4000,
+      "bytes": 245,
+      "extra": {
+        "wire_bytes": 245
+      }
+    },
+    {
+      "name": "deserialize/short_string",
+      "group": "codec.deserialize",
+      "ns_median": 1655.2792,
+      "ns_p95": 1708.03125,
+      "ns_mean": 1660.9821558333335,
+      "ns_stddev": 26.42993909453837,
+      "ns_min": 1614.74375,
+      "ops_per_sec": 604127.6903618436,
+      "samples": 60,
+      "inner": 20000,
+      "bytes": 13,
+      "extra": {
+        "wire_bytes": 13
+      }
+    },
+    {
+      "name": "deserialize/small_scalar",
+      "group": "codec.deserialize",
+      "ns_median": 1643.429175,
+      "ns_p95": 1704.33125,
+      "ns_mean": 1649.4152066666668,
+      "ns_stddev": 27.846456806070904,
+      "ns_min": 1604.8646,
+      "ops_per_sec": 608483.782089362,
+      "samples": 60,
+      "inner": 20000,
+      "bytes": 2,
+      "extra": {
+        "wire_bytes": 2
+      }
+    },
+    {
+      "name": "roundtrip/bytes_blob_1mb",
+      "group": "codec.roundtrip",
+      "ns_median": 4929977.3975,
+      "ns_p95": 5005179.585,
+      "ns_mean": 4921149.41675,
+      "ns_stddev": 61541.395402620845,
+      "ns_min": 4764224.165,
+      "ops_per_sec": 202.8406865530665,
+      "samples": 60,
+      "inner": 200,
+      "bytes": 1398114,
+      "extra": {
+        "wire_bytes": 1398114
+      }
+    },
+    {
+      "name": "roundtrip/error_value",
+      "group": "codec.roundtrip",
+      "ns_median": 4376.403625,
+      "ns_p95": 4571.86975,
+      "ns_mean": 4384.572910416667,
+      "ns_stddev": 85.45177345559479,
+      "ns_min": 4254.307375,
+      "ops_per_sec": 228498.11984606425,
+      "samples": 60,
+      "inner": 8000,
+      "bytes": 51,
+      "extra": {
+        "wire_bytes": 51
+      }
+    },
+    {
+      "name": "roundtrip/large_array_10k_ints",
+      "group": "codec.roundtrip",
+      "ns_median": 2309495.3125,
+      "ns_p95": 2398118.75,
+      "ns_mean": 2321707.9508333337,
+      "ns_stddev": 47267.97806881238,
+      "ns_min": 2265088.55,
+      "ops_per_sec": 432.9950334116558,
+      "samples": 60,
+      "inner": 40,
+      "bytes": 48893,
+      "extra": {
+        "wire_bytes": 48893
+      }
+    },
+    {
+      "name": "roundtrip/large_string_1mb",
+      "group": "codec.roundtrip",
+      "ns_median": 2267900.73,
+      "ns_p95": 2354761.665,
+      "ns_mean": 2270316.4819166665,
+      "ns_stddev": 59083.216952232455,
+      "ns_min": 2185405.625,
+      "ops_per_sec": 440.9364073003319,
+      "samples": 60,
+      "inner": 200,
+      "bytes": 1048578,
+      "extra": {
+        "wire_bytes": 1048578
+      }
+    },
+    {
+      "name": "roundtrip/nested_object",
+      "group": "codec.roundtrip",
+      "ns_median": 12192.723875,
+      "ns_p95": 12539.7395,
+      "ns_mean": 12243.960412499999,
+      "ns_stddev": 211.27785963544557,
+      "ns_min": 12008.9895,
+      "ops_per_sec": 82016.12783591394,
+      "samples": 60,
+      "inner": 4000,
+      "bytes": 245,
+      "extra": {
+        "wire_bytes": 245
+      }
+    },
+    {
+      "name": "roundtrip/short_string",
+      "group": "codec.roundtrip",
+      "ns_median": 2453.2322999999997,
+      "ns_p95": 2545.21455,
+      "ns_mean": 2468.4277758333333,
+      "ns_stddev": 92.47717790055758,
+      "ns_min": 2376.2979,
+      "ops_per_sec": 407625.482511379,
+      "samples": 60,
+      "inner": 20000,
+      "bytes": 13,
+      "extra": {
+        "wire_bytes": 13
+      }
+    },
+    {
+      "name": "roundtrip/small_scalar",
+      "group": "codec.roundtrip",
+      "ns_median": 2762.255225,
+      "ns_p95": 2885.1854,
+      "ns_mean": 2785.744513333333,
+      "ns_stddev": 113.32199210331515,
+      "ns_min": 2686.0646,
+      "ops_per_sec": 362023.0277598624,
+      "samples": 60,
+      "inner": 20000,
+      "bytes": 2,
+      "extra": {
+        "wire_bytes": 2
+      }
+    },
+    {
+      "name": "serialize/bytes_blob_1mb",
+      "group": "codec.serialize",
+      "ns_median": 3039892.395,
+      "ns_p95": 3131774.585,
+      "ns_mean": 3051016.5515833334,
+      "ns_stddev": 46399.038643995584,
+      "ns_min": 2990725.625,
+      "ops_per_sec": 328.95901237977864,
+      "samples": 60,
+      "inner": 200,
+      "bytes": 1398114,
+      "extra": {
+        "wire_bytes": 1398114
+      }
+    },
+    {
+      "name": "serialize/error_value",
+      "group": "codec.serialize",
+      "ns_median": 1828.5703125,
+      "ns_p95": 1996.177125,
+      "ns_mean": 1844.2445375,
+      "ns_stddev": 62.39784622013081,
+      "ns_min": 1770.979125,
+      "ops_per_sec": 546875.3337862145,
+      "samples": 60,
+      "inner": 8000,
+      "bytes": 51,
+      "extra": {
+        "wire_bytes": 51
+      }
+    },
+    {
+      "name": "serialize/large_array_10k_ints",
+      "group": "codec.serialize",
+      "ns_median": 788555.2125,
+      "ns_p95": 823566.65,
+      "ns_mean": 793763.3695833333,
+      "ns_stddev": 13921.444439615972,
+      "ns_min": 779180.225,
+      "ops_per_sec": 1268.1420199222891,
+      "samples": 60,
+      "inner": 40,
+      "bytes": 48893,
+      "extra": {
+        "wire_bytes": 48893
+      }
+    },
+    {
+      "name": "serialize/large_string_1mb",
+      "group": "codec.serialize",
+      "ns_median": 1742233.02,
+      "ns_p95": 1801585.0,
+      "ns_mean": 1748626.4722499999,
+      "ns_stddev": 24459.030399479856,
+      "ns_min": 1721199.375,
+      "ops_per_sec": 573.9760345031228,
+      "samples": 60,
+      "inner": 200,
+      "bytes": 1048578,
+      "extra": {
+        "wire_bytes": 1048578
+      }
+    },
+    {
+      "name": "serialize/nested_object",
+      "group": "codec.serialize",
+      "ns_median": 5086.72925,
+      "ns_p95": 5217.85425,
+      "ns_mean": 5093.9378541666665,
+      "ns_stddev": 91.12926100593658,
+      "ns_min": 4990.0105,
+      "ops_per_sec": 196589.97970061016,
+      "samples": 60,
+      "inner": 4000,
+      "bytes": 245,
+      "extra": {
+        "wire_bytes": 245
+      }
+    },
+    {
+      "name": "serialize/short_string",
+      "group": "codec.serialize",
+      "ns_median": 655.7604,
+      "ns_p95": 675.48335,
+      "ns_mean": 656.7282308333334,
+      "ns_stddev": 8.148361965307764,
+      "ns_min": 643.0375,
+      "ops_per_sec": 1524947.2215766613,
+      "samples": 60,
+      "inner": 20000,
+      "bytes": 13,
+      "extra": {
+        "wire_bytes": 13
+      }
+    },
+    {
+      "name": "serialize/small_scalar",
+      "group": "codec.serialize",
+      "ns_median": 947.186425,
+      "ns_p95": 977.6375,
+      "ns_mean": 949.5156908333333,
+      "ns_stddev": 21.340228128270436,
+      "ns_min": 916.12915,
+      "ops_per_sec": 1055758.37407087,
+      "samples": 60,
+      "inner": 20000,
+      "bytes": 2,
+      "extra": {
+        "wire_bytes": 2
+      }
+    },
+    {
+      "name": "batch/1000_calls_http_loopback",
+      "group": "rpc.batch",
+      "ns_median": 31437458.5,
+      "ns_p95": 31958875.0,
+      "ns_mean": 32075481.3,
+      "ns_stddev": 2491735.663139694,
+      "ns_min": 31219250.0,
+      "ops_per_sec": 31.80918711988121,
+      "samples": 20,
+      "inner": 1,
+      "bytes": 0,
+      "extra": {
+        "calls_per_sec": 31809.187119881208,
+        "n_calls": 1000
+      }
+    },
+    {
+      "name": "batch/1000_calls_pipe",
+      "group": "rpc.batch",
+      "ns_median": 34533854.0,
+      "ns_p95": 40677167.0,
+      "ns_mean": 35436722.266666666,
+      "ns_stddev": 2372883.246648374,
+      "ns_min": 33990666.0,
+      "ops_per_sec": 28.957092365074573,
+      "samples": 30,
+      "inner": 1,
+      "bytes": 0,
+      "extra": {
+        "calls_per_sec": 28957.09236507457,
+        "n_calls": 1000
+      }
+    },
+    {
+      "name": "fanout/100sess_x20calls",
+      "group": "rpc.fanout",
+      "ns_median": 90812333.0,
+      "ns_p95": 97399000.0,
+      "ns_mean": 91730606.72,
+      "ns_stddev": 2280642.395608422,
+      "ns_min": 89651916.0,
+      "ops_per_sec": 11.011720181222522,
+      "samples": 25,
+      "inner": 1,
+      "bytes": 0,
+      "extra": {
+        "calls_per_sec": 22023.440362445042,
+        "total_calls": 2000,
+        "sessions": 100,
+        "mem_per_session_bytes": 23177,
+        "mem_total_bytes": 2317764
+      }
+    },
+    {
+      "name": "pipeline/5deep_pipelined",
+      "group": "rpc.pipeline",
+      "ns_median": 298489.16500000004,
+      "ns_p95": 322880.0,
+      "ns_mean": 300688.6555,
+      "ns_stddev": 8440.649371078911,
+      "ns_min": 292392.08,
+      "ops_per_sec": 3350.205358375403,
+      "samples": 40,
+      "inner": 100,
+      "bytes": 0,
+      "extra": {}
+    },
+    {
+      "name": "pipeline/5deep_sequential",
+      "group": "rpc.pipeline",
+      "ns_median": 766770.835,
+      "ns_p95": 876859.59,
+      "ns_mean": 781462.73925,
+      "ns_stddev": 37823.31714202513,
+      "ns_min": 744725.42,
+      "ops_per_sec": 1304.170626155858,
+      "samples": 40,
+      "inner": 100,
+      "bytes": 0,
+      "extra": {}
+    },
+    {
+      "name": "roundtrip/add(2,3)",
+      "group": "rpc.roundtrip",
+      "ns_median": 158882.1875,
+      "ns_p95": 189458.335,
+      "ns_mean": 165256.380125,
+      "ns_stddev": 15176.402064225378,
+      "ns_min": 151146.455,
+      "ops_per_sec": 6293.971751868031,
+      "samples": 40,
+      "inner": 200,
+      "bytes": 0,
+      "extra": {}
+    },
+    {
+      "name": "roundtrip/add(2,3)_jsonCompatible",
+      "group": "rpc.roundtrip",
+      "ns_median": 136168.125,
+      "ns_p95": 140838.125,
+      "ns_mean": 136798.5365,
+      "ns_stddev": 3160.0192193045286,
+      "ns_min": 131704.58,
+      "ops_per_sec": 7343.862596330822,
+      "samples": 40,
+      "inner": 200,
+      "bytes": 0,
+      "extra": {}
+    },
+    {
+      "name": "roundtrip/echo(nested)",
+      "group": "rpc.roundtrip",
+      "ns_median": 166100.72999999998,
+      "ns_p95": 178346.04,
+      "ns_mean": 168031.8695,
+      "ns_stddev": 5922.366772354068,
+      "ns_min": 163126.46,
+      "ops_per_sec": 6020.443137125286,
+      "samples": 40,
+      "inner": 200,
+      "bytes": 0,
+      "extra": {}
+    },
+    {
+      "name": "stream/64MiB_loopback",
+      "group": "stream.throughput",
+      "ns_median": 409333750,
+      "ns_p95": 449204500,
+      "ns_mean": 417879803.71428573,
+      "ns_stddev": 15061590.274885772,
+      "ns_min": 404060917,
+      "ops_per_sec": 0.0,
+      "samples": 7,
+      "inner": 1,
+      "bytes": 67108864,
+      "extra": {
+        "MB_per_sec": 156.4,
+        "MiB_total": 64,
+        "chunk_bytes": 65536,
+        "initial_window_bytes": 262144.0
+      }
+    },
+    {
+      "name": "tables/grant+release_cycle",
+      "group": "tables.churn",
+      "ns_median": 491.77295000000004,
+      "ns_p95": 500.1625,
+      "ns_mean": 492.8275125,
+      "ns_stddev": 4.227452523044317,
+      "ns_min": 485.4083,
+      "ops_per_sec": 2033458.7333443207,
+      "samples": 40,
+      "inner": 10000,
+      "bytes": 0,
+      "extra": {
+        "note": "export_capability + _release_export per cycle",
+        "exports_table_size_after": 1
+      }
+    }
+  ]
+}

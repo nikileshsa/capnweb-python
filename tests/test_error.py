@@ -29,10 +29,12 @@ class TestRpcError:
         assert error.data is None
 
     def test_error_with_data(self) -> None:
-        """Test error with additional data."""
+        """Test error with additional properties (C-ERROR: the 3rd positional
+        is now the stack slot; the props bag is the ``properties`` kwarg)."""
         data = {"field": "username"}
-        error = RpcError(ErrorCode.BAD_REQUEST, "Invalid field", data)
+        error = RpcError(ErrorCode.BAD_REQUEST, "Invalid field", properties=data)
         assert error.data == data
+        assert error.properties == data
 
     def test_bad_request_constructor(self) -> None:
         """Test bad_request convenience constructor."""

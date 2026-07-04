@@ -168,7 +168,8 @@ class TestPayloadStubHookCall:
         result_hook = hook.call([], args)
 
         assert isinstance(result_hook, ErrorStubHook)
-        assert "not callable" in result_hook.error.message
+        # B2/TS parity: exact TS message ("'<path>' is not a function.").
+        assert "is not a function" in result_hook.error.message
 
     def test_get_missing_property(self):
         """Test getting a missing property returns error."""
@@ -278,16 +279,18 @@ class TestTargetStubHookNavigation:
 class TestTargetStubHookProperty:
     """Test TargetStubHook property access."""
 
-    def test_get_property_error(self):
-        """Test getting property that raises error."""
+    @pytest.mark.asyncio
+    async def test_get_property_error(self):
+        """Multi-hop property paths are followed (B2/TS followPath);
+        a missing first hop surfaces as an error on pull."""
         target = SimpleTarget()
         hook = TargetStubHook(target)
 
-        # Get property path (not simple case)
+        # SimpleTarget has no "level1" property -> error hook on resolution.
         result_hook = hook.get(["level1", "level2"])
 
-        assert isinstance(result_hook, ErrorStubHook)
-        assert "not yet supported" in result_hook.error.message
+        with pytest.raises(RpcError):
+            await result_hook.pull()
 
     @pytest.mark.asyncio
     async def test_pull_target_raises(self):
@@ -411,12 +414,20 @@ class TestPromiseStubHook:
         assert result.value == "resolved"
 
     def test_promise_hook_dispose_not_done(self):
-        """Test disposing a promise hook that's not resolved cancels it."""
+        """Disposing an unresolved promise hook defers disposal to the
+        eventual resolution WITHOUT canceling the in-flight work
+        (core.ts:1984-1994) — chained hooks share the same future and the
+        mapper applicator relies on intermediate results still arriving."""
         future: asyncio.Future = asyncio.Future()
         hook = PromiseStubHook(future)
 
         hook.dispose()
-        assert future.cancelled()
+        assert not future.cancelled(), "TS never cancels on dispose"
+
+        # When the future resolves, the resolution is disposed.
+        payload = RpcPayload.owned("late")
+        resolved = PayloadStubHook(payload)
+        future.set_result(resolved)
 
     def test_promise_hook_dispose_done(self):
         """Test disposing a resolved promise hook disposes the result."""
@@ -441,10 +452,23 @@ class TestPromiseStubHook:
         # Should not raise
         hook.dispose()
 
-    def test_promise_hook_dup(self):
-        """Test duplicating promise hook shares the same future."""
+    async def test_promise_hook_dup(self):
+        """dup() holds its OWN reference: the resolved hook is dup()ed
+        (core.ts:1952-1957; B3 fix — the old shared-future dup meant two
+        hooks double-disposed one resolution)."""
         future: asyncio.Future = asyncio.Future()
         hook = PromiseStubHook(future)
 
         dup = hook.dup()
-        assert dup.future is future
+        assert isinstance(dup, PromiseStubHook)
+        assert dup.future is not future
+
+        from capnweb.payload import RpcPayload
+
+        resolved = PayloadStubHook(RpcPayload.owned({"v": 1}))
+        future.set_result(resolved)
+        for _ in range(3):
+            await asyncio.sleep(0)
+
+        payload = await dup.pull()
+        assert payload.value == {"v": 1}

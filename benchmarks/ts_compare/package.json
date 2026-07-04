@@ -1,0 +1,9 @@
+{
+  "name": "capnweb-ts-bench",
+  "private": true,
+  "type": "module",
+  "description": "TypeScript reference benchmarks (capnweb 0.9.0) for side-by-side comparison. node_modules is symlinked to ../../tests/interop/node_modules.",
+  "scripts": {
+    "bench": "tsx run_all.ts"
+  }
+}

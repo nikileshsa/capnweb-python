@@ -20,6 +20,7 @@ from typing import Any
 
 from capnweb import RpcTarget, RpcError
 from capnweb.ws_session import WebSocketRpcClient, WebSocketRpcServer
+from ..support import rpc_call
 
 
 # =============================================================================
@@ -190,14 +191,14 @@ class TestBidirectionalChat:
             
             async with WebSocketRpcClient(url, local_main=callback) as client:
                 # Client calls server's join method
-                result = await client.call(0, "join", ["Alice", callback])
+                result = await rpc_call(client, "join", ["Alice", callback])
                 
                 # ASSERTION: Server responded correctly
                 assert result["status"] == "joined"
                 assert "Alice" in result["users"]
                 
                 # Client calls server's get_stats method
-                stats = await client.call(0, "get_stats", [])
+                stats = await rpc_call(client, "get_stats", [])
                 
                 # ASSERTION: Stats are correct
                 assert stats["users"] == 1
@@ -219,11 +220,11 @@ class TestBidirectionalChat:
             
             async with WebSocketRpcClient(url, local_main=callback1) as client1:
                 # Alice joins
-                await client1.call(0, "join", ["Alice", callback1])
+                await rpc_call(client1, "join", ["Alice", callback1])
                 
                 async with WebSocketRpcClient(url, local_main=callback2) as client2:
                     # Bob joins - Alice should receive notification via bidirectional call
-                    await client2.call(0, "join", ["Bob", callback2])
+                    await rpc_call(client2, "join", ["Bob", callback2])
                     
                     # Wait for Alice to receive the join event
                     await asyncio.sleep(0.1)
@@ -251,15 +252,15 @@ class TestBidirectionalChat:
             async with WebSocketRpcClient(url, local_main=callback1) as client1:
                 async with WebSocketRpcClient(url, local_main=callback2) as client2:
                     # Both join
-                    await client1.call(0, "join", ["Alice", callback1])
-                    await client2.call(0, "join", ["Bob", callback2])
+                    await rpc_call(client1, "join", ["Alice", callback1])
+                    await rpc_call(client2, "join", ["Bob", callback2])
                     
                     # Clear events from join notifications
                     callback1.received_events.clear()
                     callback2.received_events.clear()
                     
                     # Alice sends a message
-                    result = await client1.call(0, "send_message", ["Alice", "Hello everyone!"])
+                    result = await rpc_call(client1, "send_message", ["Alice", "Hello everyone!"])
                     assert result["status"] == "sent"
                     
                     # Wait for broadcast
@@ -289,14 +290,14 @@ class TestBidirectionalChat:
             url = f"ws://localhost:{port}/rpc"
             
             async with WebSocketRpcClient(url, local_main=callback) as client:
-                await client.call(0, "join", ["Alice", callback])
+                await rpc_call(client, "join", ["Alice", callback])
                 
                 # Send some messages
                 for i in range(3):
-                    await client.call(0, "send_message", ["Alice", f"Message {i}"])
+                    await rpc_call(client, "send_message", ["Alice", f"Message {i}"])
                 
                 # Get stats from chat room
-                stats = await client.call(0, "get_stats", [])
+                stats = await rpc_call(client, "get_stats", [])
                 
                 # ASSERTION: Stats are accurate
                 assert stats["users"] == 1
@@ -317,11 +318,11 @@ class TestBidirectionalChat:
             url = f"ws://localhost:{port}/rpc"
             
             async with WebSocketRpcClient(url, local_main=callback) as client:
-                await client.call(0, "join", ["Alice", callback])
+                await rpc_call(client, "join", ["Alice", callback])
                 
                 # Start multiple concurrent calls
                 tasks = [
-                    asyncio.create_task(client.call(0, "send_message", ["Alice", f"Msg {i}"]))
+                    asyncio.create_task(rpc_call(client, "send_message", ["Alice", f"Msg {i}"]))
                     for i in range(5)
                 ]
                 

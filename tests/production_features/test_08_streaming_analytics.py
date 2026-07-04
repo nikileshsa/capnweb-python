@@ -15,6 +15,7 @@ from typing import Any
 
 from capnweb import RpcTarget, RpcError
 from capnweb.ws_session import WebSocketRpcClient, WebSocketRpcServer
+from ..support import rpc_call
 
 
 @dataclass
@@ -96,13 +97,13 @@ class TestStreamingAnalytics:
         try:
             url = f"ws://localhost:{port}/rpc"
             async with WebSocketRpcClient(url) as client:
-                result = await client.call(0, "create_stream", ["events"])
+                result = await rpc_call(client, "create_stream", ["events"])
                 assert result["created"] == True
                 
-                result = await client.call(0, "push_event", ["events", {"type": "click", "x": 100}])
+                result = await rpc_call(client, "push_event", ["events", {"type": "click", "x": 100}])
                 assert result["event_count"] == 1
                 
-                stream = await client.call(0, "get_stream", ["events"])
+                stream = await rpc_call(client, "get_stream", ["events"])
                 assert len(stream["events"]) == 1
         finally:
             await server.stop()
@@ -117,10 +118,10 @@ class TestStreamingAnalytics:
         try:
             url = f"ws://localhost:{port}/rpc"
             async with WebSocketRpcClient(url) as client:
-                await client.call(0, "create_stream", ["batch_stream"])
+                await rpc_call(client, "create_stream", ["batch_stream"])
                 
                 events = [{"id": i, "value": i * 10} for i in range(100)]
-                result = await client.call(0, "push_batch", ["batch_stream", events])
+                result = await rpc_call(client, "push_batch", ["batch_stream", events])
                 assert result["added"] == 100
                 assert result["total"] == 100
         finally:
@@ -138,16 +139,16 @@ class TestStreamingAnalytics:
             async with WebSocketRpcClient(url) as client:
                 # Create multiple streams
                 for i in range(5):
-                    await client.call(0, "create_stream", [f"stream_{i}"])
+                    await rpc_call(client, "create_stream", [f"stream_{i}"])
                 
                 # Push events concurrently
                 tasks = [
-                    asyncio.create_task(client.call(0, "push_event", [f"stream_{i % 5}", {"i": i}]))
+                    asyncio.create_task(rpc_call(client, "push_event", [f"stream_{i % 5}", {"i": i}]))
                     for i in range(20)
                 ]
                 await asyncio.gather(*tasks)
                 
-                stats = await client.call(0, "get_stats", [])
+                stats = await rpc_call(client, "get_stats", [])
                 assert stats["streams"] == 5
                 assert stats["total_events"] == 20
         finally:
@@ -163,14 +164,14 @@ class TestStreamingAnalytics:
         try:
             url = f"ws://localhost:{port}/rpc"
             async with WebSocketRpcClient(url) as client:
-                await client.call(0, "create_stream", ["high_volume"])
+                await rpc_call(client, "create_stream", ["high_volume"])
                 
                 # Push 10 batches of 100 events each
                 for batch in range(10):
                     events = [{"batch": batch, "idx": i} for i in range(100)]
-                    await client.call(0, "push_batch", ["high_volume", events])
+                    await rpc_call(client, "push_batch", ["high_volume", events])
                 
-                stream = await client.call(0, "get_stream", ["high_volume"])
+                stream = await rpc_call(client, "get_stream", ["high_volume"])
                 assert len(stream["events"]) == 1000
         finally:
             await server.stop()
@@ -185,14 +186,14 @@ class TestStreamingAnalytics:
         try:
             url = f"ws://localhost:{port}/rpc"
             async with WebSocketRpcClient(url) as client:
-                await client.call(0, "create_stream", ["s1"])
-                await client.call(0, "create_stream", ["s2"])
+                await rpc_call(client, "create_stream", ["s1"])
+                await rpc_call(client, "create_stream", ["s2"])
                 
-                await client.call(0, "push_event", ["s1", {}])
-                await client.call(0, "push_event", ["s1", {}])
-                await client.call(0, "push_batch", ["s2", [{}, {}, {}]])
+                await rpc_call(client, "push_event", ["s1", {}])
+                await rpc_call(client, "push_event", ["s1", {}])
+                await rpc_call(client, "push_batch", ["s2", [{}, {}, {}]])
                 
-                stats = await client.call(0, "get_stats", [])
+                stats = await rpc_call(client, "get_stats", [])
                 assert stats["streams"] == 2
                 assert stats["total_events"] == 5
                 assert stats["batches"] == 1

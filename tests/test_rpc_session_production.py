@@ -277,9 +277,12 @@ class TestSendReleaseOnResolve:
             # Pull and resolve
             await asyncio.wait_for(result_hook.pull(), timeout=2.0)
 
-            # The entry is not necessarily removed from _imports (implementation keeps it
-            # until all local hooks are disposed), but remote refcount should be released.
-            entry = client._imports[initial_imports]  # call import id (starts at 1)
+            # TS parity (rpc.ts:857-862, fixed by stream A1): sendRelease frees
+            # the table slot immediately. The resolved value stays reachable
+            # only through the hook's cached entry reference.
+            assert initial_imports not in client._imports
+            entry = result_hook._entry
+            assert entry is not None
             assert entry.remote_refcount == 0
 
             async def wait_for_release_for_import(import_id: int) -> None:

@@ -20,9 +20,10 @@ The Parser (parser.py) handles APPLICATION-LEVEL parsing:
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from typing import Any, Final
+
+from capnweb import _json
 
 # Security: Maximum recursion depth to prevent stack overflow attacks
 MAX_PARSE_DEPTH: Final[int] = 64
@@ -102,11 +103,17 @@ class WireError:
         if not isinstance(message, str):
             msg = f"Error message must be string, got {type(message).__name__}"
             raise ValueError(msg)
-        stack = arr[3] if len(arr) > 3 else None
-        if stack is not None and not isinstance(stack, str):
-            msg = f"Error stack must be string or null, got {type(stack).__name__}"
-            raise ValueError(msg)
-        data = arr[4] if len(arr) > 4 and isinstance(arr[4], dict) else None
+        # TS only uses the stack slot when it is a string (serialize.ts:691-693);
+        # other values are ignored, not errors (the slot is normalized to null
+        # when a props bag is present).
+        stack = arr[3] if len(arr) > 3 and isinstance(arr[3], str) else None
+        data: dict[str, Any] | None = None
+        if len(arr) > 4:
+            if not isinstance(arr[4], dict):
+                # Malformed props bag is a hard error (serialize.ts:697-699).
+                msg = f"Error properties must be an object, got {type(arr[4]).__name__}"
+                raise ValueError(msg)
+            data = arr[4]
         return WireError(error_type, message, stack, data)
 
 
@@ -194,7 +201,7 @@ class WirePipeline:
         - ["pipeline", id, path_or_null, args] if args present
         """
         result: list[Any] = ["pipeline", self.import_id]
-        
+
         # Only add property_path if present or if args will follow
         if self.args is not None:
             # Args present - need placeholder for path if None
@@ -208,7 +215,7 @@ class WirePipeline:
             # Path present, no args - just add path
             result.append([pk.to_json() for pk in self.property_path])
         # else: no path, no args - minimal ["pipeline", id]
-        
+
         return result
 
     @staticmethod
@@ -289,22 +296,34 @@ class WireRemap:
     import_id: int
     property_path: list[PropertyKey] | None
     captures: list[WireCapture]
-    instructions: list[Any]  # List of WireExpression
+    instructions: list[Any]  # RAW JSON expressions, passed through untouched
 
     def to_json(self) -> list[Any]:
-        """Convert to JSON array."""
+        """Convert to JSON array.
+
+        The propertyPath is ALWAYS emitted as an array — never null. TS
+        receivers require ``value[2] instanceof Array`` and hard-reject null
+        (serialize.ts:906-912; matrix 04 row 12). Instructions are raw JSON
+        and pass through untouched (TS passes value[4] through,
+        serialize.ts:944-946; matrix 04 row 13).
+        """
         path_json = (
-            [pk.to_json() for pk in self.property_path] if self.property_path else None
+            [pk.to_json() for pk in self.property_path] if self.property_path else []
         )
         captures_json = [c.to_json() for c in self.captures]
-        instructions_json = [
-            wire_expression_to_json(instr) for instr in self.instructions
-        ]
-        return ["remap", self.import_id, path_json, captures_json, instructions_json]
+        return ["remap", self.import_id, path_json, captures_json,
+                list(self.instructions)]
 
     @staticmethod
     def from_json(arr: list[Any]) -> WireRemap:
-        """Parse from JSON array."""
+        """Parse from JSON array.
+
+        Instructions stay RAW JSON end-to-end (matrix 04 row 13): they are
+        evaluated later inside the mapper's own index space, where
+        ``["pipeline", ...]`` etc. mean something different than in a
+        top-level expression. Receive stays lenient about a null path
+        (Python <= B1 senders emitted it).
+        """
         if len(arr) != 5:
             msg = "Remap expression requires exactly 5 elements"
             raise ValueError(msg)
@@ -316,8 +335,7 @@ class WireRemap:
             [PropertyKey.from_json(pk) for pk in arr[2]] if arr[2] is not None else None
         )
         captures = [WireCapture.from_json(c) for c in arr[3]]
-        instructions = [wire_expression_from_json(instr) for instr in arr[4]]
-        return WireRemap(import_id, property_path, captures, instructions)
+        return WireRemap(import_id, property_path, captures, arr[4])
 
 
 # Wire expression type union
@@ -366,18 +384,23 @@ def wire_expression_from_json(value: Any, *, _depth: int = 0) -> WireExpression:
             f"Wire expression exceeds maximum depth ({MAX_PARSE_DEPTH}). "
             "Possible malicious payload or circular reference."
         )
-    
+
     # Primitives pass through unchanged (no recursion needed)
     # NOTE: Using tuple form - isinstance(x, T1 | T2) raises TypeError in Python
     if value is None or isinstance(value, (bool, int, float, str)):
         return value
 
-    # Dicts: recursively parse values
+    # P1 (perf): classify only the ROOT of a wire expression; leave every
+    # container INTERIOR as raw JSON. The Parser (parser.py) materializes
+    # nested special forms directly from raw JSON via ``_parse_tagged`` — the
+    # session only ever dispatches on the root form (push/stream pipeline &
+    # remap, reject/abort error). Recursively wrapping interiors in wire
+    # dataclasses here just produced objects the Parser immediately converted
+    # back with ``.to_json()`` (the wire→dataclass→JSON double-pass). Dropping
+    # that recursion removes a whole allocation+conversion layer from the
+    # receive path without changing any decoded value or the wire format.
     if isinstance(value, dict):
-        return {
-            k: wire_expression_from_json(v, _depth=_depth + 1) 
-            for k, v in value.items()
-        }
+        return value
 
     if isinstance(value, list):
         # Empty array - return as-is
@@ -387,44 +410,32 @@ def wire_expression_from_json(value: Any, *, _depth: int = 0) -> WireExpression:
         # Check for special forms (arrays starting with a string tag)
         if isinstance(value[0], str):
             tag = value[0]
-            
-            # Wire-level expressions that we convert to dataclasses
+
+            # Wire-level expressions that we convert to dataclasses (ROOT only).
             if tag == "error":
                 if len(value) >= 3 and isinstance(value[1], str) and isinstance(value[2], str):
                     return WireError.from_json(value)
-            
+
             elif tag == "pipeline":
                 if len(value) >= 2 and isinstance(value[1], int):
                     return WirePipeline.from_json(value)
-            
+
             elif tag == "date":
                 if len(value) == 2 and isinstance(value[1], (int, float)):
                     return WireDate.from_json(value)
-            
+
             elif tag == "remap":
                 # value[2] (property_path) can be null or list
                 if (len(value) == 5 and isinstance(value[1], int) and
                     (value[2] is None or isinstance(value[2], list)) and
                     isinstance(value[3], list) and isinstance(value[4], list)):
                     return WireRemap.from_json(value)
-            
-            # Application-level expressions - leave as plain lists for Parser
-            elif tag in ("export", "import", "promise"):
-                if len(value) == 2 and isinstance(value[1], int):
-                    return value  # Parser will handle these
-            
-            # Other special values (bigint, bytes, undefined, inf, nan, etc.)
-            # Leave as-is for Parser to handle
-            elif tag in ("bigint", "bytes", "undefined", "inf", "-inf", "nan"):
-                return value
-            
-            # Unknown string tag - pass through unchanged for forward compatibility
-            # If Cap'n Web adds new tagged types later, we don't want to
-            # accidentally "partially parse" a structure we don't understand
-            return value
-        
-        # Regular array (first element not a string) - recursively parse elements
-        return [wire_expression_from_json(item, _depth=_depth + 1) for item in value]
+
+        # Everything else — application-level forms (export/import/promise),
+        # other special values (bigint/bytes/undefined/inf/nan), escaped
+        # arrays [[...]], plain arrays, and unknown tags — passes through
+        # unchanged for the Parser to handle.
+        return value
 
     msg = f"Invalid wire expression type: {type(value).__name__}"
     raise ValueError(msg)
@@ -441,6 +452,12 @@ def wire_expression_to_json(expr: WireExpression) -> Any:
     """
     match expr:
         case None | bool() | int() | float() | str():
+            return expr
+
+        case bytes() | bytearray() | memoryview():
+            # Raw bytes appear inside ["bytes", ...] forms at the
+            # "jsonCompatibleWithBytes" encoding level; the transport passes
+            # them through natively (never JSON-stringified).
             return expr
 
         case dict():
@@ -538,21 +555,65 @@ class WireAbort:
         return ["abort", wire_expression_to_json(self.error)]
 
 
-WireMessage = WirePush | WirePull | WireResolve | WireReject | WireRelease | WireAbort
+@dataclass(frozen=True, slots=True)
+class WireStream:
+    """Stream message: ["stream", expression] (protocol.md:103-111).
+
+    Like push, but: no pipelining on the result, auto-pulled, and
+    auto-released once the recipient sends resolve/reject.
+    """
+
+    expression: WireExpression
+
+    def to_json(self) -> list[Any]:
+        """Convert to JSON array."""
+        return ["stream", wire_expression_to_json(self.expression)]
 
 
-def parse_wire_message(data: str) -> WireMessage:  # noqa: C901
-    """Parse a wire message from JSON string.
-    
+@dataclass(frozen=True, slots=True)
+class WirePipe:
+    """Pipe message: ["pipe"] (protocol.md:113-121).
+
+    Creates a pipe on the remote end; implicitly assigned the next
+    sequential positive import ID (same counter as push/stream).
+    """
+
+    def to_json(self) -> list[Any]:
+        """Convert to JSON array."""
+        return ["pipe"]
+
+
+WireMessage = (
+    WirePush
+    | WirePull
+    | WireResolve
+    | WireReject
+    | WireRelease
+    | WireAbort
+    | WireStream
+    | WirePipe
+)
+
+
+def parse_wire_message(data: str) -> WireMessage:
+    """Parse a wire message from JSON string ("string" encoding level).
+
     Uses strict JSON parsing to reject non-standard constants (NaN, Infinity)
     which should be encoded as special forms in Cap'n Web.
     """
-    # Strict parsing: reject non-standard JSON constants
-    def reject_constants(s: str) -> None:
-        msg = f"Non-standard JSON constant not allowed: {s}"
-        raise ValueError(msg)
-    
-    arr = json.loads(data, parse_constant=reject_constants)
+    # capnweb._json.loads is strict RFC-8259: NaN/Infinity are rejected
+    # natively (they must be encoded as ["nan"]/["inf"] escape forms).
+    return parse_wire_message_tree(_json.loads(data))
+
+
+def parse_wire_message_tree(arr: Any) -> WireMessage:  # noqa: C901
+    """Parse a wire message from an already-decoded JSON-compatible tree.
+
+    Used directly by sessions on custom-encoding transports (encoding level
+    "jsonCompatible"/"jsonCompatibleWithBytes", rpc.ts:947), where the
+    transport hands over value trees instead of JSON strings. Applies exactly
+    the same strict validation as the string path.
+    """
     if not isinstance(arr, list) or not arr:
         msg = "Wire message must be a non-empty array"
         raise ValueError(msg)
@@ -614,6 +675,18 @@ def parse_wire_message(data: str) -> WireMessage:  # noqa: C901
                 raise ValueError(msg)
             return WireAbort(wire_expression_from_json(arr[1]))
 
+        case "stream":
+            if len(arr) != 2:
+                msg = "Stream message requires exactly 2 elements"
+                raise ValueError(msg)
+            return WireStream(wire_expression_from_json(arr[1]))
+
+        case "pipe":
+            if len(arr) != 1:
+                msg = "Pipe message requires exactly 1 element"
+                raise ValueError(msg)
+            return WirePipe()
+
         case _:
             msg = f"Unknown message type: {msg_type}"
             raise ValueError(msg)
@@ -622,14 +695,28 @@ def parse_wire_message(data: str) -> WireMessage:  # noqa: C901
 def serialize_wire_message(msg: WireMessage) -> str:
     """Serialize a wire message to JSON string.
     
-    Uses allow_nan=False to prevent emitting invalid JSON.
-    Cap'n Web encodes NaN/Infinity via escape arrays like ["nan"].
+    Uses the orjson-backed codec (capnweb._json): compact, raw-UTF-8, strict —
+    byte-identical to TS JSON.stringify. Cap'n Web encodes NaN/Infinity via
+    escape arrays like ["nan"], so raw constants never reach the encoder.
     """
-    return json.dumps(msg.to_json(), allow_nan=False)
+    return _json.dumps(msg.to_json())
 
 
 def parse_wire_batch(data: str) -> list[WireMessage]:
-    """Parse a batch of newline-delimited wire messages."""
+    """Parse a batch of newline-delimited wire messages.
+
+    P5 (perf): natively-framed transports (WebSocket, in-process pipe) deliver
+    exactly one message per frame — no embedded newline. Fast-path that common
+    case to skip the ``split("\\n")`` allocation and the per-line re-``strip``.
+    Only the HTTP-batch transport ever packs multiple newline-delimited
+    messages into one frame (contract C-FRAME/D3), which still takes the split
+    path below.
+    """
+    if "\n" not in data:
+        stripped = data.strip()
+        if not stripped:
+            return []
+        return [parse_wire_message(stripped)]
     lines = data.strip().split("\n")
     return [parse_wire_message(line) for line in lines if line.strip()]
 

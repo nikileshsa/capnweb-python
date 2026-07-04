@@ -35,7 +35,6 @@ from .conftest import InteropClient, ServerProcess
 class TestBytes:
     """Test binary data serialization as ["bytes", base64]."""
     
-    @pytest.mark.xfail(reason="TypeScript Uint8Array serialization issue")
     async def test_bytes_roundtrip_ts(self, ts_server: ServerProcess):
         """Bytes round-trip correctly through TypeScript server."""
         async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
@@ -118,11 +117,7 @@ class TestBytes:
 
 @pytest.mark.asyncio
 class TestDate:
-    """Test date serialization as ["date", timestamp].
-    
-    Note: Some tests are marked xfail because TypeScript's Date serialization
-    may not be returning the expected wire format.
-    """
+    """Test date serialization as ["date", timestamp]."""
     
     async def test_date_roundtrip_ts(self, ts_server: ServerProcess):
         """Date round-trips correctly through TypeScript server."""
@@ -373,29 +368,39 @@ class TestUndefined:
     """Test undefined serialization as ["undefined"]."""
     
     async def test_undefined_return_ts(self, ts_server: ServerProcess):
-        """TypeScript undefined is returned correctly."""
+        """TypeScript undefined arrives as the capnweb.Undefined sentinel.
+
+        D5 / matrix 02 row 6: ``["undefined"]`` must stay distinct from
+        ``null`` through a Python hop (the old lossy decode to None was a
+        parity gap, fixed by A2). The sentinel is falsy so truthiness code
+        keeps working.
+        """
+        from capnweb import Undefined
+
         async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             result = await client.call("returnUndefined", [])
-            # Python represents undefined as None
-            assert result is None
-    
+            assert result is Undefined
+            assert not result
+
     async def test_undefined_return_py(self, py_server: ServerProcess):
-        """Python None (as undefined) is returned correctly."""
+        """The Python server returns None, which serializes as null."""
         async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
             result = await client.call("returnUndefined", [])
             assert result is None
-    
+
     async def test_null_vs_undefined_ts(self, ts_server: ServerProcess):
-        """Null and undefined are both received as None in Python."""
+        """Null and undefined stay DISTINCT through a Python hop (D5)."""
+        from capnweb import Undefined
+
         async with InteropClient(f"ws://127.0.0.1:{ts_server.port}/") as client:
             null_result = await client.call("returnNull", [])
             undefined_result = await client.call("returnUndefined", [])
-            # Both should be None in Python
             assert null_result is None
-            assert undefined_result is None
-    
+            assert undefined_result is Undefined
+            assert null_result is not undefined_result
+
     async def test_null_vs_undefined_py(self, py_server: ServerProcess):
-        """Null and undefined are both received as None in Python."""
+        """The Python server returns None for both; both arrive as None."""
         async with InteropClient(f"ws://127.0.0.1:{py_server.port}/rpc") as client:
             null_result = await client.call("returnNull", [])
             undefined_result = await client.call("returnUndefined", [])
@@ -409,10 +414,7 @@ class TestUndefined:
 
 @pytest.mark.asyncio
 class TestMixedSpecialForms:
-    """Test objects containing multiple special forms.
-    
-    Note: Some tests are marked xfail due to incomplete special form support.
-    """
+    """Test objects containing multiple special forms."""
     
     async def test_object_with_bytes_ts(self, ts_server: ServerProcess):
         """Object containing bytes round-trips correctly."""

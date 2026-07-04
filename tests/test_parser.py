@@ -329,35 +329,59 @@ class TestParseInvalidExpressions:
         assert isinstance(result.value, RpcStub)
         assert isinstance(result.value._hook, PayloadStubHook)
 
-    def test_parse_import_expression_unknown_export_returns_error(self):
-        """Unknown import IDs should return an error stub."""
+    def test_parse_import_expression_unknown_export_raises(self):
+        """Unknown export-table entries are a hard error, exactly like the TS
+        evaluator (serialize.ts:841-843): `no such entry on exports table`."""
         transport_a, transport_b = create_transport_pair()
         session = BidirectionalSession(transport_a, "local-main")
         parser = Parser(importer=session)
 
-        wire_value = ["import", 123]
-        result = parser.parse(wire_value)
+        with pytest.raises(ValueError, match="no such entry on exports table: 123"):
+            parser.parse(["import", 123])
 
-        assert isinstance(result.value, RpcStub)
-        hook = result.value._hook
-        assert isinstance(hook, ErrorStubHook)
-        assert "No such entry on exports table" in hook.error.message
+    async def test_parse_pipeline_expression_accepted_in_values(self):
+        """["pipeline", id, path, args] is a legitimate value expression
+        (serialize.ts:826-903) and evaluates to a promise for the call."""
 
-    def test_parse_pipeline_expression_returns_error(self):
-        """Test that pipeline expressions in parse input return error stub."""
+        class Main(RpcTarget):
+            async def method(self) -> str:
+                return "ok"
+
+        transport_a, transport_b = create_transport_pair()
+        session = BidirectionalSession(transport_a, Main())
+        parser = Parser(importer=session)
+
+        # References our exported main (id 0) and calls a method on it.
+        result = parser.parse(["pipeline", 0, ["method"], []])
+        assert isinstance(result.value, RpcPromise)
+
+    def test_parse_pipeline_unknown_export_raises(self):
+        """Pipeline against a missing export aborts evaluation like TS.
+
+        NOTE: export 0 always exists since Phase C (bootstrap ErrorStubHook
+        when local_main is None, rpc.ts:1089-1096), so the missing-export
+        case needs a never-allocated ID.
+        """
         transport_a, transport_b = create_transport_pair()
         session = BidirectionalSession(transport_a, None)
         parser = Parser(importer=session)
 
-        # ["pipeline", 0, ["method"], []] should not appear in parse input
-        wire_value = ["pipeline", 0, ["method"], []]
-        result = parser.parse(wire_value)
+        with pytest.raises(ValueError, match="no such entry on exports table: 5"):
+            parser.parse(["pipeline", 5, ["method"], []])
 
-        # Should return an error stub
-        assert isinstance(result.value, RpcStub)
-        hook = result.value._hook
-        assert isinstance(hook, ErrorStubHook)
-        assert "should not appear in parse input" in hook.error.message
+    async def test_pipeline_to_absent_main_rejects_with_no_main_error(self):
+        """With local_main=None, export 0 is an ErrorStubHook: calls on it
+        REJECT with 'This connection has no main object.' instead of
+        aborting the session (rpc.ts:1089-1096)."""
+        transport_a, transport_b = create_transport_pair()
+        session = BidirectionalSession(transport_a, None)
+        parser = Parser(importer=session)
+
+        result = parser.parse(["pipeline", 0, ["method"], []])
+        promise = result.value
+        assert isinstance(promise, RpcPromise)
+        with pytest.raises(Exception, match="This connection has no main object."):
+            await promise
 
 
 class TestParseEdgeCases:

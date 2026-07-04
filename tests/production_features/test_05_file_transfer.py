@@ -14,6 +14,7 @@ from typing import Any
 
 from capnweb import RpcTarget, RpcError
 from capnweb.ws_session import WebSocketRpcClient, WebSocketRpcServer
+from ..support import rpc_call
 
 
 @dataclass
@@ -135,7 +136,7 @@ class TestFileTransfer:
             callback = TransferCallback()
             url = f"ws://localhost:{port}/rpc"
             async with WebSocketRpcClient(url, local_main=callback) as client:
-                result = await client.call(0, "upload", ["test.txt", "Hello World Data!", callback])
+                result = await rpc_call(client, "upload", ["test.txt", "Hello World Data!", callback])
                 assert result["filename"] == "test.txt"
                 assert result["size"] == 17
                 
@@ -156,10 +157,10 @@ class TestFileTransfer:
             callback = TransferCallback()
             url = f"ws://localhost:{port}/rpc"
             async with WebSocketRpcClient(url, local_main=callback) as client:
-                await client.call(0, "upload", ["data.txt", "Some file content here"])
+                await rpc_call(client, "upload", ["data.txt", "Some file content here"])
                 
                 callback.progress_updates.clear()
-                result = await client.call(0, "download", ["data.txt", callback])
+                result = await rpc_call(client, "download", ["data.txt", callback])
                 assert result["data"] == "Some file content here"
                 
                 await asyncio.sleep(0.1)
@@ -177,10 +178,10 @@ class TestFileTransfer:
         try:
             url = f"ws://localhost:{port}/rpc"
             async with WebSocketRpcClient(url) as client:
-                await client.call(0, "upload", ["file1.txt", "content1"])
-                await client.call(0, "upload", ["file2.txt", "content2"])
+                await rpc_call(client, "upload", ["file1.txt", "content1"])
+                await rpc_call(client, "upload", ["file2.txt", "content2"])
                 
-                result = await client.call(0, "list_files", [])
+                result = await rpc_call(client, "list_files", [])
                 assert len(result["files"]) == 2
                 names = [f["name"] for f in result["files"]]
                 assert "file1.txt" in names
@@ -198,11 +199,11 @@ class TestFileTransfer:
         try:
             url = f"ws://localhost:{port}/rpc"
             async with WebSocketRpcClient(url) as client:
-                await client.call(0, "upload", ["todelete.txt", "delete me"])
-                result = await client.call(0, "delete", ["todelete.txt"])
+                await rpc_call(client, "upload", ["todelete.txt", "delete me"])
+                result = await rpc_call(client, "delete", ["todelete.txt"])
                 assert result["deleted"] == "todelete.txt"
                 
-                listing = await client.call(0, "list_files", [])
+                listing = await rpc_call(client, "list_files", [])
                 assert len(listing["files"]) == 0
         finally:
             await server.stop()
@@ -218,13 +219,13 @@ class TestFileTransfer:
             url = f"ws://localhost:{port}/rpc"
             async with WebSocketRpcClient(url) as client:
                 tasks = [
-                    asyncio.create_task(client.call(0, "upload", [f"file{i}.txt", f"content{i}"]))
+                    asyncio.create_task(rpc_call(client, "upload", [f"file{i}.txt", f"content{i}"]))
                     for i in range(5)
                 ]
                 results = await asyncio.gather(*tasks)
                 assert len(results) == 5
                 
-                stats = await client.call(0, "get_stats", [])
+                stats = await rpc_call(client, "get_stats", [])
                 assert stats["files"] == 5
                 assert stats["transfers"] == 5
         finally:

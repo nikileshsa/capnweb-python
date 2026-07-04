@@ -118,7 +118,11 @@ class TestBatchClientTransport:
 
     @pytest.mark.asyncio
     async def test_send_collects_messages(self):
-        """Test that send collects messages before batch is sent."""
+        """Send collects messages; the batch flushes on the first pull.
+
+        (B3 fix: the old sleep(0)-scheduled flush raced any caller await;
+        now the first ``["pull", ...]`` message triggers the flush.)
+        """
         received_batch = None
 
         async def mock_send_batch(batch: list[str]) -> list[str]:
@@ -132,21 +136,27 @@ class TestBatchClientTransport:
         await transport.send("msg1")
         await transport.send("msg2")
 
-        # Wait for batch to be sent
+        # No pull yet: an event-loop yield must NOT flush the batch.
+        await asyncio.sleep(0.1)
+        assert received_batch is None
+
+        # The first pull flushes.
+        await transport.send('["pull",1]')
         await asyncio.sleep(0.1)
 
-        assert received_batch == ["msg1", "msg2"]
+        assert received_batch == ["msg1", "msg2", '["pull",1]']
 
     @pytest.mark.asyncio
     async def test_receive_after_batch_sent(self):
-        """Test receiving responses after batch is sent."""
+        """Test receiving responses after the batch flushed (pull-triggered)."""
 
         async def mock_send_batch(batch: list[str]) -> list[str]:
             return ["resp1", "resp2"]
 
         transport = BatchClientTransport(mock_send_batch)
 
-        # Wait for batch to be sent
+        # Trigger the flush with a pull, then wait for it.
+        await transport.send('["pull",1]')
         await asyncio.sleep(0.1)
 
         # Receive responses
@@ -165,7 +175,8 @@ class TestBatchClientTransport:
 
         transport = BatchClientTransport(mock_send_batch)
 
-        # Wait for batch to be sent
+        # Trigger the flush with a pull, then wait for it.
+        await transport.send('["pull",1]')
         await asyncio.sleep(0.1)
 
         # Receive the one response

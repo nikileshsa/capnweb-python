@@ -10,6 +10,7 @@ from capnweb.payload import RpcPayload
 from capnweb.stubs import RpcStub
 from capnweb.types import RpcTarget
 from capnweb.ws_session import WebSocketRpcClient, WebSocketRpcServer
+from .support import rpc_call
 
 
 class EchoService(RpcTarget):
@@ -47,7 +48,7 @@ class TestWebSocketRpcBasic:
         
         try:
             async with WebSocketRpcClient("ws://localhost:9001/rpc") as client:
-                result = await client.call(0, "echo", ["Hello"])
+                result = await rpc_call(client, "echo", ["Hello"])
                 assert result == "Hello"
         finally:
             await server.stop()
@@ -59,7 +60,7 @@ class TestWebSocketRpcBasic:
         
         try:
             async with WebSocketRpcClient("ws://localhost:9002/rpc") as client:
-                result = await client.call(0, "add", [5, 3])
+                result = await rpc_call(client, "add", [5, 3])
                 assert result == 8
         finally:
             await server.stop()
@@ -71,7 +72,7 @@ class TestWebSocketRpcBasic:
         
         try:
             async with WebSocketRpcClient("ws://localhost:9003/rpc") as client:
-                result = await client.call(0, "greet", ["World"])
+                result = await rpc_call(client, "greet", ["World"])
                 assert result == "Hello, World!"
         finally:
             await server.stop()
@@ -84,7 +85,7 @@ class TestWebSocketRpcBasic:
         try:
             async with WebSocketRpcClient("ws://localhost:9004/rpc") as client:
                 for i in range(10):
-                    result = await client.call(0, "echo", [f"Message {i}"])
+                    result = await rpc_call(client, "echo", [f"Message {i}"])
                     assert result == f"Message {i}"
         finally:
             await server.stop()
@@ -118,7 +119,7 @@ class TestWebSocketRpcConcurrent:
             async with WebSocketRpcClient("ws://localhost:9006/rpc") as client:
                 # Make 10 concurrent calls
                 tasks = [
-                    client.call(0, "echo", [f"Concurrent {i}"])
+                    rpc_call(client, "echo", [f"Concurrent {i}"])
                     for i in range(10)
                 ]
                 results = await asyncio.gather(*tasks)
@@ -138,7 +139,7 @@ class TestWebSocketRpcConcurrent:
                 async with WebSocketRpcClient("ws://localhost:9007/rpc") as client:
                     results = []
                     for i in range(5):
-                        result = await client.call(0, "echo", [f"Client{client_id}-{i}"])
+                        result = await rpc_call(client, "echo", [f"Client{client_id}-{i}"])
                         results.append(result)
                     return results
             
@@ -165,7 +166,7 @@ class TestWebSocketRpcStress:
         try:
             async with WebSocketRpcClient("ws://localhost:9008/rpc") as client:
                 for i in range(100):
-                    result = await client.call(0, "add", [i, 1])
+                    result = await rpc_call(client, "add", [i, 1])
                     assert result == i + 1
         finally:
             await server.stop()
@@ -178,7 +179,7 @@ class TestWebSocketRpcStress:
         try:
             async with WebSocketRpcClient("ws://localhost:9009/rpc") as client:
                 large_string = "X" * 10000
-                result = await client.call(0, "echo", [large_string])
+                result = await rpc_call(client, "echo", [large_string])
                 assert result == large_string
         finally:
             await server.stop()
@@ -247,16 +248,16 @@ class TestWebSocketRpcBidirectional:
 
                 # Send the client's local main capability to the server as a stub
                 callback_stub = RpcStub(client._session.get_export(0).dup())
-                result = await client.call(0, "register_callback", [callback_stub])
+                result = await rpc_call(client, "register_callback", [callback_stub])
                 assert result == "registered"
 
                 # Now have server call back into the client via the stored capability
-                result = await client.call(0, "trigger_callback", [])
+                result = await rpc_call(client, "trigger_callback", [])
                 assert result == "Got: ping"
                 assert local.notifications == ["ping"]
 
                 # Simple call to verify connection works
-                result = await client.call(0, "echo", ["test"])
+                result = await rpc_call(client, "echo", ["test"])
                 assert result == "test"
         finally:
             await server.stop()
@@ -287,7 +288,7 @@ class TestWebSocketRpcDrain:
             async with WebSocketRpcClient("ws://localhost:9012/rpc") as client:
                 # Make some calls
                 for i in range(5):
-                    await client.call(0, "echo", [f"msg{i}"])
+                    await rpc_call(client, "echo", [f"msg{i}"])
                 
                 # Drain should complete
                 await asyncio.wait_for(client.drain(), timeout=1.0)

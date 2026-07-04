@@ -15,6 +15,7 @@ from typing import Any
 
 from capnweb import RpcTarget, RpcError
 from capnweb.ws_session import WebSocketRpcClient, WebSocketRpcServer
+from ..support import rpc_call
 
 
 @dataclass
@@ -116,10 +117,10 @@ class TestServiceMesh:
             service = MicroService(name="echo_service")
             url = f"ws://localhost:{port}/rpc"
             async with WebSocketRpcClient(url, local_main=service) as client:
-                result = await client.call(0, "register", ["echo", service])
+                result = await rpc_call(client, "register", ["echo", service])
                 assert result["registered"] == True
                 
-                result = await client.call(0, "discover", ["echo"])
+                result = await rpc_call(client, "discover", ["echo"])
                 assert result["found"] == True
         finally:
             await server.stop()
@@ -135,9 +136,9 @@ class TestServiceMesh:
             service = MicroService(name="math_service")
             url = f"ws://localhost:{port}/rpc"
             async with WebSocketRpcClient(url, local_main=service) as client:
-                await client.call(0, "register", ["math", service])
+                await rpc_call(client, "register", ["math", service])
                 
-                result = await client.call(0, "call_service", ["math", "add", [1, 2, 3, 4, 5]])
+                result = await rpc_call(client, "call_service", ["math", "add", [1, 2, 3, 4, 5]])
                 assert result["result"]["sum"] == 15
         finally:
             await server.stop()
@@ -156,10 +157,10 @@ class TestServiceMesh:
             
             async with WebSocketRpcClient(url, local_main=svc1) as client1:
                 async with WebSocketRpcClient(url, local_main=svc2) as client2:
-                    await client1.call(0, "register", ["svc1", svc1])
-                    await client2.call(0, "register", ["svc2", svc2])
+                    await rpc_call(client1, "register", ["svc1", svc1])
+                    await rpc_call(client2, "register", ["svc2", svc2])
                     
-                    services = await client1.call(0, "list_services", [])
+                    services = await rpc_call(client1, "list_services", [])
                     assert "svc1" in services["services"]
                     assert "svc2" in services["services"]
         finally:
@@ -176,12 +177,12 @@ class TestServiceMesh:
             service = MicroService(name="stats_service")
             url = f"ws://localhost:{port}/rpc"
             async with WebSocketRpcClient(url, local_main=service) as client:
-                await client.call(0, "register", ["stats", service])
+                await rpc_call(client, "register", ["stats", service])
                 
-                await client.call(0, "call_service", ["stats", "echo", ["test"]])
-                await client.call(0, "call_service", ["stats", "echo", ["test2"]])
+                await rpc_call(client, "call_service", ["stats", "echo", ["test"]])
+                await rpc_call(client, "call_service", ["stats", "echo", ["test2"]])
                 
-                stats = await client.call(0, "get_stats", [])
+                stats = await rpc_call(client, "get_stats", [])
                 assert stats["registered_services"] == 1
                 assert stats["total_calls"] == 2
         finally:
@@ -198,7 +199,7 @@ class TestServiceMesh:
             url = f"ws://localhost:{port}/rpc"
             async with WebSocketRpcClient(url) as client:
                 with pytest.raises(Exception):
-                    await client.call(0, "discover", ["nonexistent"])
+                    await rpc_call(client, "discover", ["nonexistent"])
         finally:
             await server.stop()
 

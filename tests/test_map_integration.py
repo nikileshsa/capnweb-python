@@ -394,7 +394,8 @@ class TestRpcStubMapReal:
         result = stub.map(lambda x: x)
         value = await result
 
-        assert value is not None
+        # B2: real recorder — identity map returns the REAL elements.
+        assert value == [1, 2, 3, 4, 5]
 
     async def test_stub_map_on_empty_array(self) -> None:
         """RpcStub.map() on empty array should return empty array."""
@@ -471,7 +472,8 @@ class TestRpcPromiseMapReal:
         result = promise.map(lambda x: x)
         value = await result
 
-        assert value is not None
+        # B2: real recorder — identity map returns the REAL elements.
+        assert value == [10, 20, 30]
 
     async def test_promise_map_chains(self) -> None:
         """RpcPromise.map() should chain correctly."""
@@ -483,7 +485,7 @@ class TestRpcPromiseMapReal:
 
         assert isinstance(result, RpcPromise)
         value = await result
-        assert value is not None
+        assert value == [1, 2, 3]
 
     async def test_promise_map_on_pending_promise(self) -> None:
         """RpcPromise.map() should work on pending promise."""
@@ -498,9 +500,9 @@ class TestRpcPromiseMapReal:
         inner_hook = PayloadStubHook(RpcPayload.owned([1, 2, 3]))
         future.set_result(inner_hook)
 
-        # Result should now be available
+        # Result should now be available with REAL values (identity map).
         value = await result
-        assert value is not None
+        assert value == [1, 2, 3]
 
 
 # =============================================================================
@@ -727,10 +729,11 @@ class TestMapWireFormatReal:
         )
 
         json_data = remap.to_json()
-        assert json_data[2] is None
+        # B2: propertyPath is ALWAYS an array on the wire (TS rejects null).
+        assert json_data[2] == []
 
         parsed = WireRemap.from_json(json_data)
-        assert parsed.property_path is None
+        assert not parsed.property_path  # [] round-trips as empty
 
     def test_wire_capture_types(self) -> None:
         """WireCapture should handle both types."""
